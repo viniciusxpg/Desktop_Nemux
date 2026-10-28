@@ -32,6 +32,8 @@ Aba 3: claude ─┘                     ▲
   sublinhado, caracteres largos e 10 mil linhas de histórico.
 - **Painéis divididos**: divida qualquer aba ao lado ou abaixo, quantas vezes
   quiser, e veja vários terminais (ou várias sessões do Claude) ao mesmo tempo.
+  Arraste a divisória entre dois painéis para redimensioná-los; um duplo clique
+  nela volta a dividir ao meio.
 - **Seleção e cópia de texto**: arraste para selecionar, dê duplo clique para
   pegar uma palavra ou um caminho de arquivo inteiro.
 - **Shift+Enter** quebra a linha no prompt do Claude Code sem enviar.
@@ -158,7 +160,6 @@ memória usam sempre um banco temporário.
 
 - Só funciona no Windows por enquanto.
 - Arrastar a seleção além da borda não rola o histórico, e não há triplo clique.
-- Os painéis sempre dividem o espaço ao meio; ainda não dá para arrastar a divisória.
 - `Shift+Enter` envia `ESC CR` (o mesmo que `Alt+Enter`): é o que o Claude Code
   entende como nova linha, e o ConPTY do Windows 10 descarta as codificações
   modernas da tecla. Programas que esperam um Shift+Enter "de verdade" não o recebem.

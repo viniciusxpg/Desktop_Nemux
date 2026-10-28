@@ -44,11 +44,16 @@ impl Rect {
         self.y + self.h
     }
 
-    /// As duas metades ao dividir, com `gap` px de divisória entre elas.
+    /// As duas metades ao dividir ao meio, com `gap` px de divisória entre elas.
     pub fn halves(&self, split: Split, gap: f32) -> (Rect, Rect) {
+        self.split_at(split, gap, 0.5)
+    }
+
+    /// As duas partes ao dividir: a primeira fica com `ratio` do espaço (sem a divisória).
+    pub fn split_at(&self, split: Split, gap: f32, ratio: f32) -> (Rect, Rect) {
         match split {
             Split::Right => {
-                let w = ((self.w - gap) / 2.0).floor().max(0.0);
+                let w = ((self.w - gap) * ratio).floor().max(0.0);
                 let b_x = self.x + w + gap;
                 (
                     Rect::new(self.x, self.y, w, self.h),
@@ -56,7 +61,7 @@ impl Rect {
                 )
             }
             Split::Down => {
-                let h = ((self.h - gap) / 2.0).floor().max(0.0);
+                let h = ((self.h - gap) * ratio).floor().max(0.0);
                 let b_y = self.y + h + gap;
                 (
                     Rect::new(self.x, self.y, self.w, h),
@@ -72,9 +77,23 @@ pub enum Node {
     Leaf(PaneId),
     Split {
         split: Split,
+        /// Parte do espaço que fica com `a` (0,5 = ao meio).
+        ratio: f32,
         a: Box<Node>,
         b: Box<Node>,
     },
+}
+
+/// Uma divisória entre dois painéis (ou grupos de painéis).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Divider {
+    /// Caminho da raiz até a divisão: `false` = entrar em `a`, `true` = em `b`.
+    pub path: Vec<bool>,
+    pub split: Split,
+    /// Espaço que essa divisão reparte.
+    pub area: Rect,
+    /// O vão entre as duas partes.
+    pub rect: Rect,
 }
 
 impl Node {
@@ -101,6 +120,7 @@ impl Node {
             Node::Leaf(id) if *id == target => {
                 *self = Node::Split {
                     split,
+                    ratio: 0.5,
                     a: Box::new(Node::Leaf(target)),
                     b: Box::new(Node::Leaf(new)),
                 };
@@ -143,11 +163,55 @@ impl Node {
     fn collect_rects(&self, area: Rect, gap: f32, out: &mut Vec<(PaneId, Rect)>) {
         match self {
             Node::Leaf(id) => out.push((*id, area)),
-            Node::Split { split, a, b } => {
-                let (ra, rb) = area.halves(*split, gap);
+            Node::Split { split, ratio, a, b } => {
+                let (ra, rb) = area.split_at(*split, gap, *ratio);
                 a.collect_rects(ra, gap, out);
                 b.collect_rects(rb, gap, out);
             }
+        }
+    }
+
+    /// Todas as divisórias dentro de `area`, das externas para as internas.
+    pub fn dividers(&self, area: Rect, gap: f32) -> Vec<Divider> {
+        let mut out = Vec::new();
+        self.collect_dividers(area, gap, &mut Vec::new(), &mut out);
+        out
+    }
+
+    fn collect_dividers(&self, area: Rect, gap: f32, path: &mut Vec<bool>, out: &mut Vec<Divider>) {
+        let Node::Split { split, ratio, a, b } = self else {
+            return;
+        };
+        let (ra, rb) = area.split_at(*split, gap, *ratio);
+        let rect = match split {
+            Split::Right => Rect::new(ra.right(), area.y, rb.x - ra.right(), area.h),
+            Split::Down => Rect::new(area.x, ra.bottom(), area.w, rb.y - ra.bottom()),
+        };
+        out.push(Divider {
+            path: path.clone(),
+            split: *split,
+            area,
+            rect,
+        });
+        for (side, child, child_area) in [(false, a, ra), (true, b, rb)] {
+            path.push(side);
+            child.collect_dividers(child_area, gap, path, out);
+            path.pop();
+        }
+    }
+
+    /// Muda a proporção da divisão no fim de `path`.
+    pub fn set_ratio(&mut self, path: &[bool], new_ratio: f32) -> bool {
+        let Node::Split { ratio, a, b, .. } = self else {
+            return false;
+        };
+        match path.split_first() {
+            None => {
+                *ratio = new_ratio.clamp(0.0, 1.0);
+                true
+            }
+            Some((false, rest)) => a.set_ratio(rest, new_ratio),
+            Some((true, rest)) => b.set_ratio(rest, new_ratio),
         }
     }
 }
@@ -272,6 +336,46 @@ mod tests {
         let rects = n.rects(AREA, 2.0);
         assert_eq!(neighbor(&rects, 4, Direction::Left), Some(3));
         assert_eq!(neighbor(&rects, 2, Direction::Down), Some(4));
+    }
+
+    #[test]
+    fn ratio_moves_the_divider() {
+        let mut n = Node::Leaf(1);
+        n.split(1, Split::Right, 2);
+        assert!(n.set_ratio(&[], 0.25));
+        let rects = n.rects(AREA, 2.0);
+        assert_eq!(rects[0].1.w, 249.0);
+        assert_eq!(rects[1].1, Rect::new(251.0, 0.0, 749.0, 600.0));
+        assert!(
+            !n.set_ratio(&[true], 0.5),
+            "o lado b é um painel, não uma divisão"
+        );
+    }
+
+    #[test]
+    fn dividers_and_paths() {
+        // [1 | 2]
+        // [1 | 3]
+        let mut n = Node::Leaf(1);
+        n.split(1, Split::Right, 2);
+        n.split(2, Split::Down, 3);
+        let d = n.dividers(AREA, 2.0);
+        assert_eq!(d.len(), 2);
+        assert_eq!((d[0].path.as_slice(), d[0].split), (&[][..], Split::Right));
+        assert_eq!(d[0].rect, Rect::new(499.0, 0.0, 2.0, 600.0));
+        assert_eq!(
+            (d[1].path.as_slice(), d[1].split),
+            (&[true][..], Split::Down)
+        );
+        assert_eq!(d[1].area, Rect::new(501.0, 0.0, 499.0, 600.0));
+        assert_eq!(d[1].rect, Rect::new(501.0, 299.0, 499.0, 2.0));
+
+        // Mudar a divisão interna só mexe nos painéis 2 e 3.
+        assert!(n.set_ratio(&d[1].path, 0.75));
+        let rects = n.rects(AREA, 2.0);
+        assert_eq!(rects[0].1.w, 499.0);
+        assert_eq!(rects[1].1.h, 448.0);
+        assert_eq!(rects[2].1.y, 450.0);
     }
 
     #[test]

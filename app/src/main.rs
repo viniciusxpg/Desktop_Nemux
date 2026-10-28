@@ -84,7 +84,14 @@ pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
 
     let panes_model = Rc::new(VecModel::default());
     ui.set_panes(ModelRc::from(panes_model.clone()));
-    let app = Rc::new(RefCell::new(App::new(tx, metrics(ui), panes_model)));
+    let dividers_model = Rc::new(VecModel::default());
+    ui.set_dividers(ModelRc::from(dividers_model.clone()));
+    let app = Rc::new(RefCell::new(App::new(
+        tx,
+        metrics(ui),
+        panes_model,
+        dividers_model,
+    )));
 
     let weak = ui.as_weak();
     let on_change = {
@@ -140,6 +147,14 @@ pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
     ui.on_scroll_lines({
         let on_change = on_change.clone();
         move |pane, lines| on_change(&|app| app.scroll(pane_id(pane), lines as isize))
+    });
+    ui.on_divider_drag({
+        let on_change = on_change.clone();
+        move |index, x, y| on_change(&|app| app.drag_divider(index.max(0) as usize, x, y))
+    });
+    ui.on_divider_reset({
+        let on_change = on_change.clone();
+        move |index| on_change(&|app| app.reset_divider(index.max(0) as usize))
     });
     ui.on_wheel({
         let on_change = on_change.clone();

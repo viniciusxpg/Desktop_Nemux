@@ -6,6 +6,16 @@ import { SessionPicker, SessionItem } from "session-picker.slint";
 
 export { MemoryEntry, PaneView, TermLine, TermRun, SelRect, SessionItem }
 
+// Divisória entre painéis, na área dos painéis; `vertical` = painéis lado a lado.
+export struct DividerView {
+    index: int,
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+    vertical: bool,
+}
+
 export struct TabInfo {
     title: string,
 }
@@ -111,8 +121,9 @@ export component AppWindow inherits Window {
 
     in property <[TabInfo]> tabs;
     in property <int> active-tab;
-    // Painéis da aba ativa.
+    // Painéis da aba ativa e as divisórias entre eles.
     in property <[PaneView]> panes;
+    in property <[DividerView]> dividers;
 
     // Painel de memória.
     in-out property <bool> memory-open;
@@ -153,6 +164,9 @@ export component AppWindow inherits Window {
     callback scroll-to(int, int);
     // Roda do mouse: linhas (positivo sobe), linha e coluna sob o ponteiro.
     callback wheel(int, int, int, int);
+    // Arraste de uma divisória até um ponto da área dos painéis; duplo clique volta ao meio.
+    callback divider-drag(int, length, length);
+    callback divider-reset(int);
     // Seleção com o mouse, em (linha, coluna) da grade; podem vir fora dos limites.
     callback select-start(int, int, int);
     callback select-move(int, int);
@@ -361,6 +375,30 @@ export component AppWindow inherits Window {
                     scroll-lines(lines) => { root.scroll-lines(pane.id, lines); }
                     scroll-to(offset) => { root.scroll-to(pane.id, offset); }
                     wheel(lines, row, col) => { root.wheel(pane.id, lines, row, col); }
+                }
+
+                // Faixa de 8px sobre cada divisória de 2px, para ser fácil de pegar.
+                for d in root.dividers: grip := Rectangle {
+                    property <length> thickness: 8px;
+                    x: d.vertical ? d.x + d.width / 2 - self.thickness / 2 : d.x;
+                    y: d.vertical ? d.y : d.y + d.height / 2 - self.thickness / 2;
+                    width: d.vertical ? self.thickness : d.width;
+                    height: d.vertical ? d.height : self.thickness;
+
+                    if grip-touch.has-hover || grip-touch.pressed: Rectangle {
+                        x: d.vertical ? (parent.width - 2px) / 2 : 0;
+                        y: d.vertical ? 0 : (parent.height - 2px) / 2;
+                        width: d.vertical ? 2px : parent.width;
+                        height: d.vertical ? parent.height : 2px;
+                        background: Theme.accent;
+                    }
+
+                    grip-touch := TouchArea {
+                        mouse-cursor: d.vertical ? MouseCursor.col-resize : MouseCursor.row-resize;
+                        // grip.x + mouse-x é o ponteiro na área dos painéis, mesmo com a faixa se movendo.
+                        moved => { root.divider-drag(d.index, grip.x + self.mouse-x, grip.y + self.mouse-y); }
+                        double-clicked => { root.divider-reset(d.index); }
+                    }
                 }
             }
 

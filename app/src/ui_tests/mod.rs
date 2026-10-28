@@ -4,6 +4,7 @@
 //
 // As capturas vão para <workspace>/target/ui-capturas/<nome>.png.
 
+mod divisorias;
 mod memoria;
 mod mouse;
 mod paineis;

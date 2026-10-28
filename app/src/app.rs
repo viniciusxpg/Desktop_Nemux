@@ -11,7 +11,7 @@ use crate::keys::{self, Mods};
 use crate::layout::{self, Direction, Node, PaneId, Rect, Split};
 use crate::selection::Selection;
 use crate::terminal::{Event, Rgb, Run, Terminal};
-use crate::{AppWindow, PaneView, SelRect, TabInfo, TermLine, TermRun};
+use crate::{AppWindow, DividerView, PaneView, SelRect, TabInfo, TermLine, TermRun};
 
 /// Espaço entre painéis vizinhos; nele aparece a cor de divisória do fundo.
 pub const PANE_GAP: f32 = 2.0;
@@ -59,6 +59,8 @@ pub struct App {
     pub shell: Box<dyn Fn() -> CommandBuilder>,
     clipboard: Option<arboard::Clipboard>,
     panes_model: Rc<VecModel<PaneView>>,
+    /// Fixo durante o arraste: recriar a lista destruiria a divisória sendo arrastada.
+    dividers_model: Rc<VecModel<DividerView>>,
     /// Seleção e o painel onde ela foi feita.
     pub selection: Option<(PaneId, Selection)>,
     /// O botão esquerdo está pressionado sobre um painel.
@@ -74,6 +76,7 @@ impl App {
         events: mpsc::Sender<(PaneId, Event)>,
         metrics: Metrics,
         panes_model: Rc<VecModel<PaneView>>,
+        dividers_model: Rc<VecModel<DividerView>>,
     ) -> Self {
         Self {
             tabs: Vec::new(),
@@ -85,6 +88,7 @@ impl App {
             shell: Box::new(shell_command),
             clipboard: None,
             panes_model,
+            dividers_model,
             selection: None,
             selecting: false,
             dragged: false,
@@ -267,6 +271,62 @@ impl App {
                 true
             }
             None => false,
+        }
+    }
+
+    /// Arrasta a divisória `index` (na ordem de `Node::dividers`) até o ponto (`x`, `y`)
+    /// da área dos painéis. Nenhum dos lados fica menor que o mínimo de uma divisão.
+    pub fn drag_divider(&mut self, index: usize, x: f32, y: f32) {
+        let Some(tab) = self.tabs.get(self.active) else {
+            return;
+        };
+        let Some(d) = tab
+            .layout
+            .dividers(self.area(), PANE_GAP)
+            .into_iter()
+            .nth(index)
+        else {
+            return;
+        };
+        let m = self.metrics;
+        let (pos, start, len, min) = match d.split {
+            Split::Right => (
+                x,
+                d.area.x,
+                d.area.w,
+                MIN_COLS as f32 * m.cell_w + 2.0 * m.pad + m.scrollbar,
+            ),
+            Split::Down => (
+                y,
+                d.area.y,
+                d.area.h,
+                MIN_ROWS as f32 * m.cell_h + 2.0 * m.pad,
+            ),
+        };
+        let space = len - PANE_GAP;
+        if space <= 0.0 {
+            return;
+        }
+        let ratio = (pos - start - PANE_GAP / 2.0) / space;
+        let (lo, hi) = (min / space, 1.0 - min / space);
+        let ratio = if lo < hi { ratio.clamp(lo, hi) } else { 0.5 };
+        self.tabs[self.active].layout.set_ratio(&d.path, ratio);
+        self.relayout();
+    }
+
+    /// Volta a divisória `index` para o meio.
+    pub fn reset_divider(&mut self, index: usize) {
+        let Some(tab) = self.tabs.get_mut(self.active) else {
+            return;
+        };
+        if let Some(d) = tab
+            .layout
+            .dividers(Rect::default(), PANE_GAP)
+            .into_iter()
+            .nth(index)
+        {
+            tab.layout.set_ratio(&d.path, 0.5);
+            self.relayout();
         }
     }
 
@@ -566,6 +626,32 @@ impl App {
             .into_iter()
             .filter_map(|(id, rect)| self.pane_view(id, rect, Some(id) == active))
             .collect();
+
+        let dividers: Vec<DividerView> = self
+            .tabs
+            .get(self.active)
+            .map(|t| t.layout.dividers(self.area(), PANE_GAP))
+            .unwrap_or_default()
+            .into_iter()
+            .enumerate()
+            .map(|(i, d)| DividerView {
+                index: i as i32,
+                x: d.rect.x,
+                y: d.rect.y,
+                width: d.rect.w,
+                height: d.rect.h,
+                vertical: d.split == Split::Right,
+            })
+            .collect();
+        if self.dividers_model.row_count() == dividers.len() {
+            for (row, d) in dividers.into_iter().enumerate() {
+                if self.dividers_model.row_data(row).as_ref() != Some(&d) {
+                    self.dividers_model.set_row_data(row, d);
+                }
+            }
+        } else {
+            self.dividers_model.set_vec(dividers);
+        }
 
         let model = &self.panes_model;
         let same_panes = model.row_count() == views.len()
