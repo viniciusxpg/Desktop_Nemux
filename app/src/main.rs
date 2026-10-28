@@ -2,6 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+#[cfg(windows)]
+mod conpty;
 mod keys;
 mod layout;
 mod memory_view;

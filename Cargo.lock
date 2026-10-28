@@ -2922,6 +2922,7 @@ dependencies = [
  "dirs",
  "i-slint-backend-testing",
  "ico",
+ "libloading",
  "memchr",
  "nemux-memory",
  "png",

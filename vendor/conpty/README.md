@@ -12,20 +12,24 @@ Licença MIT (ver `LICENSE`). Os dois arquivos têm assinatura digital da Micros
 
 ## Por que estão aqui
 
-O `portable-pty` usa um `conpty.dll` que esteja ao lado do executável no lugar
-do ConPTY embutido no Windows. O do Windows 10 é antigo: ele redesenha a tela
+O `portable-pty` usa um `conpty.dll` já carregado (ou ao lado do executável) no
+lugar do ConPTY embutido no Windows. O do Windows 10 é antigo: ele redesenha a tela
 em vez de repassar a saída do programa, e por isso esconde do Nemux que o
 Claude Code usa a tela alternativa e o mouse. Sem a versão nova, a roda do
 mouse não chega ao Claude e a conversa não rola. O Windows Terminal e o WezTerm
 usam a mesma solução.
 
-O `app/build.rs` copia os dois arquivos para junto do `nemux-app.exe` (e dos
-binários de teste) a cada compilação. Sem eles, o app ainda funciona, com o
-ConPTY do Windows.
+Os dois arquivos ficam **embutidos** no `nemux-app.exe` (`app/src/conpty.rs`):
+ao abrir o primeiro terminal, o Nemux os extrai para
+`%LOCALAPPDATA%\nemux\conpty\<versão>\` e carrega o `conpty.dll` de lá. Assim o
+`.exe` funciona sozinho, copiado para qualquer pasta. Se a extração falhar, o app
+continua funcionando com o ConPTY do Windows. `NEMUX_SYSTEM_CONPTY=1` força o do
+Windows, para comparar.
 
 ## Atualizar
 
 Baixe o `.nupkg` mais novo do link acima, extraia
 `runtimes/win-x64/native/conpty.dll` e `build/native/runtimes/x64/OpenConsole.exe`,
 confira a assinatura (`Get-AuthenticodeSignature`) e atualize a versão e os
-hashes desta página.
+hashes desta página e a constante `VERSION` em `app/src/conpty.rs` (ela nomeia a
+pasta da extração).

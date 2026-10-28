@@ -78,12 +78,15 @@ janela (backend de testes do Slint + renderizador por software):
   `target\release\nemux-mcp.exe`. O Windows trava o `.exe` enquanto alguma sessão
   do Claude o usa: feche-as antes de recompilar em release.
 - **ConPTY novo em `vendor/conpty`** (`conpty.dll` + `OpenConsole.exe` da Microsoft,
-  MIT; ver o README de lá). O `build.rs` os copia para `target/<perfil>` e `deps`,
-  e o `portable-pty` os prefere ao ConPTY do Windows. O do Windows 10 redesenha a
-  tela em vez de repassar a saída: ele esconde que o Claude Code usa tela
-  alternativa e mouse (`?1049h`, `?1000h`, `?1006h`), então a roda não chegava
-  ao Claude. Ao investigar algo do ConPTY, lembre que o `cargo test` põe
-  `target/debug` no PATH: para testar sem o ConPTY novo, tire as duas cópias.
+  MIT; ver o README de lá), **embutido no executável** (`src/conpty.rs`): no
+  primeiro terminal ele é extraído para `%LOCALAPPDATA%\nemux\conpty\<versão>` e
+  carregado pelo caminho completo; o `portable-pty`, que pede `conpty.dll` pelo
+  nome, recebe essa DLL já carregada. O do Windows 10 redesenha a tela em vez de
+  repassar a saída: ele esconde que o Claude Code usa tela alternativa e mouse
+  (`?1049h`, `?1000h`, `?1006h`), então a roda não chegava ao Claude. Antes ele
+  era copiado para junto do `.exe`, e um `.exe` copiado sozinho para outra pasta
+  perdia a correção. `NEMUX_SYSTEM_CONPTY=1` usa o do Windows (o teste
+  `ui_tests::mouse::roda...` falha com ele, e isso é esperado).
 - A roda do mouse (`App::wheel`) vai para o programa se ele ligou o mouse; na
   tela alternativa sem mouse vira setas; senão rola o histórico do Nemux.
 - O ConPTY pergunta a posição do cursor (`ESC[6n`) ao iniciar e espera a

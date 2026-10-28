@@ -74,6 +74,9 @@ impl Terminal {
         cols: u16,
         on_event: impl Fn(Event) + Send + Sync + 'static,
     ) -> anyhow::Result<Self> {
+        // Antes do primeiro pseudoconsole: o portable-pty escolhe o ConPTY uma vez só.
+        #[cfg(windows)]
+        crate::conpty::ensure_loaded();
         let (rows, cols) = (non_zero(rows), non_zero(cols));
         let pair = native_pty_system().openpty(pty_size(rows, cols))?;
         let mut child = pair.slave.spawn_command(cmd)?;

@@ -170,5 +170,8 @@ MIT.
 
 O Nemux inclui em `vendor/conpty/` o `conpty.dll` e o `OpenConsole.exe` da
 Microsoft (projeto [microsoft/terminal](https://github.com/microsoft/terminal),
-licença MIT), a mesma versão do ConPTY usada pelo Windows Terminal. Com ela, a
-roda do mouse funciona dentro do Claude Code e de outros programas de tela cheia.
+licença MIT), a mesma versão do ConPTY usada pelo Windows Terminal. Eles ficam
+embutidos no `nemux-app.exe` e são extraídos para `%LOCALAPPDATA%\nemux\conpty`
+na primeira execução, então o `.exe` pode ser copiado sozinho para qualquer pasta.
+Com essa versão, a roda do mouse funciona dentro do Claude Code e de outros
+programas de tela cheia.

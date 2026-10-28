@@ -15,6 +15,10 @@ serde_json = "1.0.154"
 slint = "1.18.1"
 vt100 = "0.18.1"
 
+[target.'cfg(windows)'.dependencies]
+# Carrega o ConPTY embutido pelo caminho completo (src/conpty.rs).
+libloading = "0.8"
+
 [build-dependencies]
 ico = "0.6.0"
 resvg = "0.48"
