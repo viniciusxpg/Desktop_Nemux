@@ -1,3 +1,9 @@
+import { Palette } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { MemoryPanel, MemoryEntry } from "memory-panel.slint";
+
+export { MemoryEntry }
+
 export struct TermRun {
     col: int,
     width: int,
@@ -23,19 +29,6 @@ export struct SelRect {
 
 export struct TabInfo {
     title: string,
-}
-
-global Theme {
-    out property <color> background: #1e1e1e;
-    out property <color> foreground: #cccccc;
-    out property <color> tab-bar: #2b2b2b;
-    out property <color> tab-active: #1e1e1e;
-    out property <color> tab-hover: #383838;
-    out property <color> muted: #8a8a8a;
-    out property <color> accent: #3b78ff;
-    out property <color> selection: #3b78ff66;
-    out property <string> font-family: "Consolas";
-    out property <length> font-size: 14px;
 }
 
 component TabButton inherits Rectangle {
@@ -113,6 +106,14 @@ export component AppWindow inherits Window {
     in property <int> cursor-col;
     in property <[SelRect]> selection;
 
+    // Painel de memória.
+    in-out property <bool> memory-open;
+    in property <[MemoryEntry]> memory-entries;
+    in property <[string]> memory-projects;
+    in-out property <int> memory-project-index;
+    in-out property <string> memory-query;
+    in property <string> memory-status;
+
     // Tamanho de uma célula, medido com a própria fonte.
     out property <length> cell-width: measure.preferred-width / 10;
     out property <length> cell-height: measure.preferred-height;
@@ -135,12 +136,29 @@ export component AppWindow inherits Window {
     callback select-word(int, int);
     // Botão direito: copia a seleção ou cola.
     callback secondary-click();
+    // Recarregar a lista da memória (painel aberto, busca ou filtro mudou).
+    callback memory-refresh();
+    callback memory-delete(int);
+
+    // Os widgets (campo de busca, lista) seguem o tema escuro do terminal.
+    init => {
+        Palette.color-scheme = ColorScheme.dark;
+    }
 
     changed grid-cols => { root.grid-resized(root.grid-cols, root.grid-rows); }
     changed grid-rows => { root.grid-resized(root.grid-cols, root.grid-rows); }
 
     public function focus-terminal() {
         key-handler.focus();
+    }
+
+    public function toggle-memory() {
+        root.memory-open = !root.memory-open;
+        if root.memory-open {
+            root.memory-refresh();
+        } else {
+            key-handler.focus();
+        }
     }
 
     // Célula sob um ponto da área do terminal.
@@ -164,7 +182,6 @@ export component AppWindow inherits Window {
             background: Theme.tab-bar;
 
             HorizontalLayout {
-                alignment: start;
 
                 for tab[i] in root.tabs: TabButton {
                     title: tab.title;
@@ -201,103 +218,144 @@ export component AppWindow inherits Window {
                         }
                     }
                 }
+
+                // Empurra o botão "Memória" para a direita; as abas ficam perto do tamanho natural.
+                Rectangle {
+                    horizontal-stretch: 1000;
+                }
+
+                memory-btn := Rectangle {
+                    width: 96px;
+                    accessible-role: button;
+                    accessible-label: "Memória";
+                    accessible-action-default => { root.toggle-memory(); }
+                    background: root.memory-open ? Theme.tab-active : (memory-touch.has-hover ? Theme.tab-hover : transparent);
+
+                    Text {
+                        text: "Memória";
+                        color: root.memory-open ? Theme.foreground : Theme.muted;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    memory-touch := TouchArea {
+                        clicked => { root.toggle-memory(); }
+                    }
+                }
             }
         }
 
-        term-area := Rectangle {
-            property <length> pad: 6px;
-            background: Theme.background;
-            clip: true;
+        body := HorizontalLayout {
+            term-area := Rectangle {
+                property <length> pad: 6px;
+                background: Theme.background;
+                clip: true;
 
-            mouse := TouchArea {
-                mouse-cursor: text;
-                pointer-event(event) => {
-                    if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
-                        key-handler.focus();
-                        root.select-start(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
-                    } else if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
-                        root.select-end();
-                    } else if event.button == PointerEventButton.right && event.kind == PointerEventKind.down {
-                        key-handler.focus();
-                        root.secondary-click();
+                mouse := TouchArea {
+                    mouse-cursor: text;
+                    pointer-event(event) => {
+                        if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                            key-handler.focus();
+                            root.select-start(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+                        } else if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                            root.select-end();
+                        } else if event.button == PointerEventButton.right && event.kind == PointerEventKind.down {
+                            key-handler.focus();
+                            root.secondary-click();
+                        }
+                    }
+                    moved => {
+                        root.select-move(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+                    }
+                    double-clicked => {
+                        root.select-word(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+                    }
+                    scroll-event(event) => {
+                        root.scroll-lines(event.delta-y > 0 ? 3 : -3);
+                        accept
                     }
                 }
-                moved => {
-                    root.select-move(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+
+                key-handler := FocusScope {
+                    // O foco vem da TouchArea acima; se o FocusScope tratasse o clique, a seleção não receberia o mouse.
+                    focus-on-click: false;
+                    key-pressed(event) => {
+                        if event.modifiers.control && event.modifiers.shift && !event.modifiers.alt && (event.text == "m" || event.text == "M") {
+                            root.toggle-memory();
+                            return accept;
+                        }
+                        if root.key-input(event.text, event.modifiers.control, event.modifiers.alt, event.modifiers.shift) {
+                            return accept;
+                        }
+                        reject
+                    }
                 }
-                double-clicked => {
-                    root.select-word(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
-                }
-                scroll-event(event) => {
-                    root.scroll-lines(event.delta-y > 0 ? 3 : -3);
-                    accept
+
+                grid := Rectangle {
+                    x: term-area.pad;
+                    y: term-area.pad;
+                    width: root.grid-cols * root.cell-width;
+                    height: root.grid-rows * root.cell-height;
+
+                    for line[r] in root.lines: Rectangle {
+                        y: r * root.cell-height;
+                        height: root.cell-height;
+
+                        for run in line.runs: Rectangle {
+                            x: run.col * root.cell-width;
+                            width: run.width * root.cell-width;
+                            background: run.has-bg ? run.bg : transparent;
+
+                            Text {
+                                x: 0;
+                                width: parent.width;
+                                height: parent.height;
+                                text: run.text;
+                                color: run.fg;
+                                font-family: Theme.font-family;
+                                font-size: Theme.font-size;
+                                font-weight: run.bold ? 700 : 400;
+                                font-italic: run.italic;
+                                vertical-alignment: center;
+                            }
+
+                            if run.underline: Rectangle {
+                                y: parent.height - 2px;
+                                height: 1px;
+                                background: run.fg;
+                            }
+                        }
+                    }
+
+                    for sel in root.selection: Rectangle {
+                        x: sel.col * root.cell-width;
+                        y: sel.row * root.cell-height;
+                        width: sel.width * root.cell-width;
+                        height: root.cell-height;
+                        background: Theme.selection;
+                    }
+
+                    if root.cursor-row >= 0: Rectangle {
+                        x: root.cursor-col * root.cell-width;
+                        y: root.cursor-row * root.cell-height;
+                        width: root.cell-width;
+                        height: root.cell-height;
+                        background: key-handler.has-focus ? Theme.foreground.with-alpha(0.5) : transparent;
+                        border-width: key-handler.has-focus ? 0 : 1px;
+                        border-color: Theme.foreground;
+                    }
                 }
             }
 
-            key-handler := FocusScope {
-                // O foco vem da TouchArea acima; se o FocusScope tratasse o clique, a seleção não receberia o mouse.
-                focus-on-click: false;
-                key-pressed(event) => {
-                    if root.key-input(event.text, event.modifiers.control, event.modifiers.alt, event.modifiers.shift) {
-                        return accept;
-                    }
-                    reject
-                }
-            }
-
-            grid := Rectangle {
-                x: term-area.pad;
-                y: term-area.pad;
-                width: root.grid-cols * root.cell-width;
-                height: root.grid-rows * root.cell-height;
-
-                for line[r] in root.lines: Rectangle {
-                    y: r * root.cell-height;
-                    height: root.cell-height;
-
-                    for run in line.runs: Rectangle {
-                        x: run.col * root.cell-width;
-                        width: run.width * root.cell-width;
-                        background: run.has-bg ? run.bg : transparent;
-
-                        Text {
-                            x: 0;
-                            width: parent.width;
-                            height: parent.height;
-                            text: run.text;
-                            color: run.fg;
-                            font-family: Theme.font-family;
-                            font-size: Theme.font-size;
-                            font-weight: run.bold ? 700 : 400;
-                            font-italic: run.italic;
-                            vertical-alignment: center;
-                        }
-
-                        if run.underline: Rectangle {
-                            y: parent.height - 2px;
-                            height: 1px;
-                            background: run.fg;
-                        }
-                    }
-                }
-
-                for sel in root.selection: Rectangle {
-                    x: sel.col * root.cell-width;
-                    y: sel.row * root.cell-height;
-                    width: sel.width * root.cell-width;
-                    height: root.cell-height;
-                    background: Theme.selection;
-                }
-
-                if root.cursor-row >= 0: Rectangle {
-                    x: root.cursor-col * root.cell-width;
-                    y: root.cursor-row * root.cell-height;
-                    width: root.cell-width;
-                    height: root.cell-height;
-                    background: key-handler.has-focus ? Theme.foreground.with-alpha(0.5) : transparent;
-                    border-width: key-handler.has-focus ? 0 : 1px;
-                    border-color: Theme.foreground;
-                }
+            if root.memory-open: memory-panel := MemoryPanel {
+                entries: root.memory-entries;
+                projects: root.memory-projects;
+                project-index <=> root.memory-project-index;
+                query <=> root.memory-query;
+                status: root.memory-status;
+                search-changed => { root.memory-refresh(); }
+                delete(id) => { root.memory-delete(id); }
+                close => { root.toggle-memory(); }
             }
         }
     }

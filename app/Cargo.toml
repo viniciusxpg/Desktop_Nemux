@@ -19,3 +19,4 @@ slint-build = "1.18.1"
 # precisa ser exatamente a versão do slint (crate interno, sem semver)
 i-slint-backend-testing = { version = "=1.18.1", features = ["renderer-software"] }
 png = "0.18"
+tempfile = "3.27.0"

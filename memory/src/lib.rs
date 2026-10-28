@@ -1,6 +1,7 @@
 //! Armazenamento da memória do Nemux: SQLite com busca de texto (FTS5).
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use rusqlite::{Connection, params};
 
@@ -69,6 +70,10 @@ impl Memory {
     }
 
     fn init(conn: Connection) -> Result<Self, Error> {
+        // Várias sessões do Claude (e o app) usam o mesmo arquivo: WAL deixa ler
+        // enquanto outro grava, e o busy_timeout espera em vez de falhar.
+        conn.busy_timeout(Duration::from_secs(5))?;
+        conn.query_row("PRAGMA journal_mode = WAL", [], |_| Ok(()))?;
         conn.execute_batch(SCHEMA)?;
         Ok(Self { conn })
     }
@@ -100,7 +105,7 @@ impl Memory {
             return Ok(Vec::new());
         };
         let mut stmt = self.conn.prepare(
-            "SELECT m.id, m.project, m.content, m.created_at
+            "SELECT m.id, m.project, m.content, datetime(m.created_at, 'localtime')
              FROM memories_fts f JOIN memories m ON m.id = f.rowid
              WHERE memories_fts MATCH ?1 AND (?2 IS NULL OR m.project = ?2)
              ORDER BY rank LIMIT ?3",
@@ -109,14 +114,29 @@ impl Memory {
         rows.collect()
     }
 
-    /// Memórias mais recentes de um projeto.
-    pub fn recent(&self, project: &str, limit: usize) -> Result<Vec<Entry>, Error> {
+    /// Memórias mais recentes, de um projeto ou de todos (`None`).
+    pub fn recent(&self, project: Option<&str>, limit: usize) -> Result<Vec<Entry>, Error> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, project, content, created_at FROM memories
-             WHERE project = ?1 ORDER BY id DESC LIMIT ?2",
+            "SELECT id, project, content, datetime(created_at, 'localtime') FROM memories
+             WHERE ?1 IS NULL OR project = ?1 ORDER BY id DESC LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![project, limit as i64], row_to_entry)?;
         rows.collect()
+    }
+
+    /// Projetos com a quantidade de memórias, os usados mais recentemente primeiro.
+    pub fn projects(&self) -> Result<Vec<(String, usize)>, Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT project, COUNT(*) FROM memories GROUP BY project ORDER BY MAX(id) DESC",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as usize)))?;
+        rows.collect()
+    }
+
+    /// Muda sempre que outra conexão grava no banco; serve para saber quando recarregar.
+    pub fn data_version(&self) -> Result<i64, Error> {
+        self.conn
+            .query_row("PRAGMA data_version", [], |row| row.get(0))
     }
 }
 
@@ -174,6 +194,41 @@ mod tests {
     }
 
     #[test]
+    fn recent_and_projects() {
+        let mem = Memory::open_in_memory().unwrap();
+        mem.save("a", "um").unwrap();
+        mem.save("b", "dois").unwrap();
+        mem.save("a", "três").unwrap();
+
+        let all: Vec<_> = mem
+            .recent(None, 10)
+            .unwrap()
+            .into_iter()
+            .map(|e| e.content)
+            .collect();
+        assert_eq!(all, ["três", "dois", "um"]);
+        assert_eq!(mem.recent(Some("b"), 10).unwrap().len(), 1);
+        assert_eq!(
+            mem.projects().unwrap(),
+            [("a".to_string(), 2), ("b".to_string(), 1)]
+        );
+    }
+
+    #[test]
+    fn data_version_sees_other_connections() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nemux.db");
+        let reader = Memory::open(&path).unwrap();
+        let writer = Memory::open(&path).unwrap();
+
+        let before = reader.data_version().unwrap();
+        assert_eq!(reader.data_version().unwrap(), before);
+        writer.save("p", "nova").unwrap();
+        assert_ne!(reader.data_version().unwrap(), before);
+        assert_eq!(reader.recent(None, 5).unwrap().len(), 1);
+    }
+
+    #[test]
     fn delete_removes_from_search() {
         let mem = Memory::open_in_memory().unwrap();
         let id = mem.save("nemux", "memória temporária").unwrap();
@@ -190,7 +245,7 @@ mod tests {
             .save("p", "persistido")
             .unwrap();
 
-        let recent = Memory::open(&path).unwrap().recent("p", 5).unwrap();
+        let recent = Memory::open(&path).unwrap().recent(Some("p"), 5).unwrap();
         assert_eq!(recent.len(), 1);
         assert_eq!(recent[0].content, "persistido");
     }

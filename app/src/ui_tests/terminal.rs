@@ -62,7 +62,8 @@ fn grade_preenche_a_area_do_terminal() {
 
 #[test]
 fn redimensionar_a_janela_redimensiona_o_terminal() {
-    let (app, controllers) = abrir_com_controllers();
+    let dir = tempfile::tempdir().unwrap();
+    let (app, controllers) = abrir_com_controllers(&dir.path().join("nemux.db"));
     app.window().set_size(slint::LogicalSize::new(600.0, 300.0));
     // O `changed` roda no próximo ciclo; ler a propriedade força o cálculo.
     let (cols, rows) = (app.get_grid_cols(), app.get_grid_rows());

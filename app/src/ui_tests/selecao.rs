@@ -14,11 +14,16 @@ const MARCA: &str = "nemux-selecao";
 
 /// Abre uma aba com `cmd.exe` que imprime a marca e continua aberto.
 fn abrir_com_cmd() -> (AppWindow, Controllers) {
-    let (app, controllers) = abrir_com_controllers();
+    let (app, controllers) = abrir_com_controllers(&banco_temporario());
     let mut cmd = CommandBuilder::new("cmd.exe");
     cmd.args(["/k", &format!("echo {MARCA} C:\\pasta\\arquivo.rs:42")]);
     controllers.app.borrow_mut().new_tab_with(cmd);
     (app, controllers)
+}
+
+/// Estes testes não abrem o painel de memória, então o banco nunca é criado.
+fn banco_temporario() -> std::path::PathBuf {
+    std::env::temp_dir().join("nemux-testes-selecao-nao-usado.db")
 }
 
 /// Roda o timer dos controllers até a marca aparecer na tela; devolve a linha dela.
@@ -152,7 +157,7 @@ fn digitar_descarta_a_selecao() {
 
 #[test]
 fn clicar_no_terminal_da_foco_ao_teclado() {
-    let (app, _controllers) = abrir_com_controllers();
+    let (app, _controllers) = abrir_com_controllers(&banco_temporario());
     let teclas = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
     app.on_key_input({
         let teclas = teclas.clone();

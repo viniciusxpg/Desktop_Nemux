@@ -2898,6 +2898,7 @@ dependencies = [
  "portable-pty",
  "slint",
  "slint-build",
+ "tempfile",
  "vt100",
 ]
 

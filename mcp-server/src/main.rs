@@ -101,7 +101,7 @@ impl NemuxServer {
     #[tool(description = "Lista as memórias mais recentes de um projeto.")]
     fn memory_recent(&self, Parameters(args): Parameters<RecentArgs>) -> Result<String, String> {
         let limit = args.limit.unwrap_or(DEFAULT_LIMIT);
-        let entries = self.with_memory(|m| m.recent(&args.project, limit))?;
+        let entries = self.with_memory(|m| m.recent(Some(&args.project), limit))?;
         Ok(format_entries(&entries))
     }
 

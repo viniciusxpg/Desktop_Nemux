@@ -2,12 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod keys;
+mod memory_view;
 mod selection;
 mod terminal;
 #[cfg(test)]
 mod ui_tests;
 
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -16,6 +18,7 @@ use portable_pty::CommandBuilder;
 use slint::{Model, ModelRc, SharedString, VecModel};
 
 use keys::Mods;
+use memory_view::MemoryView;
 use selection::Selection;
 use terminal::{Event, Rgb, Run, Terminal};
 
@@ -325,6 +328,7 @@ fn handle_shortcut(app: &mut App, text: &str, mods: Mods) -> bool {
 pub struct Controllers {
     app: Rc<RefCell<App>>,
     _timer: slint::Timer,
+    _memory_timer: slint::Timer,
 }
 
 impl Controllers {
@@ -343,8 +347,14 @@ fn main() -> Result<(), slint::PlatformError> {
     ui.run()
 }
 
-/// Registra os callbacks da interface. Não abre nenhuma aba (os testes de UI usam isso).
+/// Registra os callbacks da interface com o banco de memória padrão.
 pub fn init_controllers(ui: &AppWindow) -> Controllers {
+    init_controllers_with_db(ui, nemux_memory::default_path())
+}
+
+/// Registra os callbacks da interface. Não abre nenhuma aba, e o banco de memória só é
+/// aberto quando o painel é usado (os testes de UI passam um banco temporário).
+pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
     let (tx, rx) = mpsc::channel();
 
     let lines_model = Rc::new(VecModel::default());
@@ -487,5 +497,40 @@ pub fn init_controllers(ui: &AppWindow) -> Controllers {
         }
     });
 
-    Controllers { app, _timer: timer }
+    let memory = Rc::new(RefCell::new(MemoryView::new(db)));
+    let weak = ui.as_weak();
+    ui.on_memory_refresh({
+        let (memory, weak) = (memory.clone(), weak.clone());
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                memory.borrow_mut().refresh(&ui);
+            }
+        }
+    });
+    ui.on_memory_delete({
+        let (memory, weak) = (memory.clone(), weak.clone());
+        move |id| {
+            if let Some(ui) = weak.upgrade() {
+                memory.borrow_mut().delete(&ui, id);
+            }
+        }
+    });
+    // Com o painel aberto, mostra na hora o que o Claude salvar em qualquer aba.
+    let memory_timer = slint::Timer::default();
+    memory_timer.start(slint::TimerMode::Repeated, Duration::from_secs(1), {
+        let memory = memory.clone();
+        move || {
+            if let Some(ui) = weak.upgrade()
+                && ui.get_memory_open()
+            {
+                memory.borrow_mut().poll(&ui);
+            }
+        }
+    });
+
+    Controllers {
+        app,
+        _timer: timer,
+        _memory_timer: memory_timer,
+    }
 }

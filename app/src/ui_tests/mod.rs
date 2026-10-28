@@ -4,12 +4,13 @@
 //
 // As capturas vão para <workspace>/target/ui-capturas/<nome>.png.
 
+mod memoria;
 mod selecao;
 mod terminal;
 
 use std::fs::{self, File};
 use std::io::BufWriter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use i_slint_backend_testing::{ElementHandle, TestingBackend, TestingBackendOptions};
 use slint::{ComponentHandle, LogicalSize};
@@ -40,10 +41,11 @@ pub fn abrir() -> App {
     app
 }
 
-// Igual a `abrir`, mas com os controllers reais (sem nenhuma aba aberta).
-pub fn abrir_com_controllers() -> (App, crate::Controllers) {
+// Igual a `abrir`, mas com os controllers reais (sem nenhuma aba aberta) e o
+// banco de memória em `db`. Nunca use o banco padrão: ele é o do usuário.
+pub fn abrir_com_controllers(db: &Path) -> (App, crate::Controllers) {
     let app = abrir();
-    let controllers = crate::init_controllers(&app);
+    let controllers = crate::init_controllers_with_db(&app, db.to_path_buf());
     (app, controllers)
 }
 

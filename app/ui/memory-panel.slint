@@ -1,0 +1,205 @@
+import { LineEdit, ComboBox, ListView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+export struct MemoryEntry {
+    id: int,
+    project: string,
+    content: string,
+    created: string,
+}
+
+component MemoryItem inherits Rectangle {
+    in property <MemoryEntry> entry;
+    // Primeiro clique em "Apagar" pede confirmação; o segundo apaga.
+    in property <bool> confirming;
+    callback delete-clicked();
+
+    border-radius: 6px;
+    background: hover.has-hover ? Theme.tab-hover : Theme.background;
+
+    hover := TouchArea { }
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 6px;
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            Rectangle {
+                border-radius: 4px;
+                background: Theme.accent.with-alpha(0.2);
+
+                HorizontalLayout {
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    padding-top: 2px;
+                    padding-bottom: 2px;
+
+                    Text {
+                        text: root.entry.project;
+                        color: #9ab8ff;
+                        font-size: 11px;
+                    }
+                }
+            }
+
+            Text {
+                text: root.entry.created;
+                color: Theme.muted;
+                font-size: 11px;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+
+            delete-btn := Rectangle {
+                border-radius: 4px;
+                background: delete-touch.has-hover ? Theme.tab-hover.brighter(30%) : transparent;
+                accessible-role: button;
+                accessible-label: (root.confirming ? "Confirmar apagar memória " : "Apagar memória ") + root.entry.id;
+                accessible-action-default => { root.delete-clicked(); }
+
+                HorizontalLayout {
+                    padding-left: 6px;
+                    padding-right: 6px;
+
+                    Text {
+                        text: root.confirming ? "Confirmar?" : "Apagar";
+                        color: root.confirming ? #e74856 : Theme.muted;
+                        font-size: 11px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                delete-touch := TouchArea {
+                    clicked => { root.delete-clicked(); }
+                }
+            }
+        }
+
+        Text {
+            text: root.entry.content;
+            color: Theme.foreground;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component MemoryPanel inherits Rectangle {
+    in property <[MemoryEntry]> entries;
+    // Índice 0 = todos os projetos.
+    in property <[string]> projects;
+    in-out property <int> project-index;
+    in-out property <string> query;
+    in property <string> status;
+    // Memória aguardando o segundo clique para ser apagada.
+    property <int> confirm-id: -1;
+
+    // A busca ou o filtro mudou.
+    callback search-changed();
+    callback delete(int);
+    callback close();
+
+    width: 380px;
+    background: Theme.tab-bar;
+
+    init => {
+        search.focus();
+    }
+
+    // Esc fecha o painel (as teclas que o campo de busca não usa sobem até aqui).
+    FocusScope {
+        focus-on-click: false;
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.close();
+                return accept;
+            }
+            reject
+        }
+
+        VerticalLayout {
+            padding: 12px;
+            spacing: 10px;
+
+            HorizontalLayout {
+                Text {
+                    text: "Memória";
+                    color: Theme.foreground;
+                    font-size: 15px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                }
+
+                close-btn := Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 4px;
+                    background: close-touch.has-hover ? Theme.tab-hover : transparent;
+                    accessible-role: button;
+                    accessible-label: "Fechar memória";
+                    accessible-action-default => { root.close(); }
+
+                    Text {
+                        text: "×";
+                        color: Theme.muted;
+                        font-size: 18px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    close-touch := TouchArea {
+                        clicked => { root.close(); }
+                    }
+                }
+            }
+
+            search := LineEdit {
+                placeholder-text: "Buscar na memória…";
+                text <=> root.query;
+                edited => { root.search-changed(); }
+            }
+
+            project := ComboBox {
+                model: root.projects;
+                current-index <=> root.project-index;
+                selected => { root.search-changed(); }
+            }
+
+            list := ListView {
+                vertical-stretch: 1;
+
+                for entry in root.entries: VerticalLayout {
+                    padding-bottom: 6px;
+
+                    MemoryItem {
+                        entry: entry;
+                        confirming: root.confirm-id == entry.id;
+                        delete-clicked => {
+                            if root.confirm-id == entry.id {
+                                root.confirm-id = -1;
+                                root.delete(entry.id);
+                            } else {
+                                root.confirm-id = entry.id;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.entries.length == 0: Text {
+                text: root.query == "" ? "Nenhuma memória salva ainda." : "Nenhuma memória encontrada.";
+                color: Theme.muted;
+                horizontal-alignment: center;
+            }
+
+            status-text := Text {
+                text: root.status;
+                color: Theme.muted;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+    }
+}
