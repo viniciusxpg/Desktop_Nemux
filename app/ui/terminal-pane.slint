@@ -1,0 +1,159 @@
+import { Theme } from "theme.slint";
+
+export struct TermRun {
+    col: int,
+    width: int,
+    text: string,
+    fg: color,
+    bg: color,
+    has-bg: bool,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+}
+
+export struct TermLine {
+    runs: [TermRun],
+}
+
+// Trecho selecionado numa linha da grade.
+export struct SelRect {
+    row: int,
+    col: int,
+    width: int,
+}
+
+// Um painel de terminal, com a posição já calculada pelo Rust (app/src/layout.rs).
+export struct PaneView {
+    id: int,
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+    lines: [TermLine],
+    // Linha/coluna do cursor; -1 = escondido.
+    cursor-row: int,
+    cursor-col: int,
+    selection: [SelRect],
+    // Painel que recebe o teclado.
+    active: bool,
+}
+
+export component TerminalPane inherits Rectangle {
+    in property <PaneView> pane;
+    in property <length> cell-width;
+    in property <length> cell-height;
+    in property <length> pad;
+    // O teclado está no terminal e este é o painel ativo: cursor cheio.
+    in property <bool> focused;
+    // Há mais de um painel: o ativo ganha uma borda.
+    in property <bool> highlight;
+
+    // Seleção com o mouse, em (linha, coluna) da grade; podem vir fora dos limites.
+    callback select-start(int, int);
+    callback select-move(int, int);
+    callback select-end();
+    callback select-word(int, int);
+    // Botão direito: copia a seleção ou cola.
+    callback secondary-click();
+    // Linhas a rolar: positivo sobe no histórico.
+    callback scroll-lines(int);
+
+    x: root.pane.x;
+    y: root.pane.y;
+    width: root.pane.width;
+    height: root.pane.height;
+    background: Theme.background;
+    clip: true;
+
+    // Célula sob um ponto do painel.
+    pure function cell-row(y: length) -> int {
+        floor((y - root.pad) / root.cell-height)
+    }
+    pure function cell-col(x: length) -> int {
+        floor((x - root.pad) / root.cell-width)
+    }
+
+    mouse := TouchArea {
+        mouse-cursor: text;
+        pointer-event(event) => {
+            if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                root.select-start(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+            } else if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                root.select-end();
+            } else if event.button == PointerEventButton.right && event.kind == PointerEventKind.down {
+                root.secondary-click();
+            }
+        }
+        moved => {
+            root.select-move(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+        }
+        double-clicked => {
+            root.select-word(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+        }
+        scroll-event(event) => {
+            root.scroll-lines(event.delta-y > 0 ? 3 : -3);
+            accept
+        }
+    }
+
+    grid := Rectangle {
+        x: root.pad;
+        y: root.pad;
+        width: root.width - 2 * root.pad;
+        height: root.height - 2 * root.pad;
+
+        for line[r] in root.pane.lines: Rectangle {
+            y: r * root.cell-height;
+            height: root.cell-height;
+
+            for run in line.runs: Rectangle {
+                x: run.col * root.cell-width;
+                width: run.width * root.cell-width;
+                background: run.has-bg ? run.bg : transparent;
+
+                Text {
+                    x: 0;
+                    width: parent.width;
+                    height: parent.height;
+                    text: run.text;
+                    color: run.fg;
+                    font-family: Theme.font-family;
+                    font-size: Theme.font-size;
+                    font-weight: run.bold ? 700 : 400;
+                    font-italic: run.italic;
+                    vertical-alignment: center;
+                }
+
+                if run.underline: Rectangle {
+                    y: parent.height - 2px;
+                    height: 1px;
+                    background: run.fg;
+                }
+            }
+        }
+
+        for sel in root.pane.selection: Rectangle {
+            x: sel.col * root.cell-width;
+            y: sel.row * root.cell-height;
+            width: sel.width * root.cell-width;
+            height: root.cell-height;
+            background: Theme.selection;
+        }
+
+        if root.pane.cursor-row >= 0: Rectangle {
+            x: root.pane.cursor-col * root.cell-width;
+            y: root.pane.cursor-row * root.cell-height;
+            width: root.cell-width;
+            height: root.cell-height;
+            background: root.focused ? Theme.foreground.with-alpha(0.5) : transparent;
+            border-width: root.focused ? 0 : 1px;
+            border-color: Theme.muted;
+        }
+    }
+
+    if root.highlight && root.pane.active: Rectangle {
+        border-width: 1px;
+        border-color: Theme.accent.with-alpha(0.8);
+    }
+}

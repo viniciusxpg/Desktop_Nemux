@@ -30,7 +30,10 @@ pub fn encode(text: &str, mods: Mods, app_cursor: bool) -> Option<Vec<u8>> {
         // Shift, Control, Alt, AltGr, CapsLock, Meta (sozinhos).
         '\u{10}'..='\u{18}' => return None,
         '\u{8}' => vec![if mods.ctrl { 0x08 } else { 0x7f }],
-        '\n' => with_alt(b"\r", mods.alt),
+        // Shift+Enter vira ESC CR (o mesmo que Alt+Enter): o ConPTY do Windows 10 descarta
+        // as codificações modernas (CSI u, modifyOtherKeys), e o Claude Code entende ESC CR
+        // como nova linha no prompt. No PowerShell não faz nada (não executa o comando).
+        '\n' => with_alt(b"\r", mods.alt || mods.shift),
         '\t' if mods.shift => b"\x1b[Z".to_vec(),
         '\u{19}' => b"\x1b[Z".to_vec(),
         '\u{7f}' => tilde(3, mods),
@@ -131,6 +134,21 @@ mod tests {
         assert_eq!(enc("ç", NONE), "ç".as_bytes());
         assert_eq!(enc("\n", NONE), b"\r");
         assert_eq!(enc("\u{8}", NONE), b"\x7f");
+    }
+
+    #[test]
+    fn shift_enter_is_esc_cr() {
+        assert_eq!(
+            enc(
+                "\n",
+                Mods {
+                    shift: true,
+                    ..NONE
+                }
+            ),
+            b"\x1b\r"
+        );
+        assert_eq!(enc("\n", Mods { alt: true, ..NONE }), b"\x1b\r");
     }
 
     #[test]

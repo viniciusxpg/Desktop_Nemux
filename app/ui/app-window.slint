@@ -1,31 +1,9 @@
 import { Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { MemoryPanel, MemoryEntry } from "memory-panel.slint";
+import { TerminalPane, PaneView, TermLine, TermRun, SelRect } from "terminal-pane.slint";
 
-export { MemoryEntry }
-
-export struct TermRun {
-    col: int,
-    width: int,
-    text: string,
-    fg: color,
-    bg: color,
-    has-bg: bool,
-    bold: bool,
-    italic: bool,
-    underline: bool,
-}
-
-export struct TermLine {
-    runs: [TermRun],
-}
-
-// Trecho selecionado numa linha da grade.
-export struct SelRect {
-    row: int,
-    col: int,
-    width: int,
-}
+export { MemoryEntry, PaneView, TermLine, TermRun, SelRect }
 
 export struct TabInfo {
     title: string,
@@ -92,6 +70,37 @@ component TabButton inherits Rectangle {
     }
 }
 
+// Botão da barra de abas que divide o painel ativo; o ícone mostra a divisória.
+component SplitButton inherits Rectangle {
+    in property <bool> side-by-side;
+    in property <string> label;
+    callback clicked();
+
+    width: 32px;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    background: touch.has-hover ? Theme.tab-hover : transparent;
+
+    icon := Rectangle {
+        width: 16px;
+        height: 12px;
+        border-width: 1.5px;
+        border-radius: 2px;
+        border-color: touch.has-hover ? Theme.foreground : Theme.muted;
+
+        Rectangle {
+            width: root.side-by-side ? 1.5px : parent.width;
+            height: root.side-by-side ? parent.height : 1.5px;
+            background: icon.border-color;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
 export component AppWindow inherits Window {
     title: "Nemux";
     icon: @image-url("icons/nemux.svg");
@@ -101,11 +110,8 @@ export component AppWindow inherits Window {
 
     in property <[TabInfo]> tabs;
     in property <int> active-tab;
-    in property <[TermLine]> lines;
-    // Linha/coluna do cursor; -1 = escondido.
-    in property <int> cursor-row: -1;
-    in property <int> cursor-col;
-    in property <[SelRect]> selection;
+    // Painéis da aba ativa.
+    in property <[PaneView]> panes;
 
     // Painel de memória.
     in-out property <bool> memory-open;
@@ -118,25 +124,30 @@ export component AppWindow inherits Window {
     // Tamanho de uma célula, medido com a própria fonte.
     out property <length> cell-width: measure.preferred-width / 10;
     out property <length> cell-height: measure.preferred-height;
-    // Quantas colunas/linhas cabem na área do terminal.
-    out property <int> grid-cols: max(1, floor((term-area.width - 2 * term-area.pad) / max(1px, root.cell-width)));
-    out property <int> grid-rows: max(1, floor((term-area.height - 2 * term-area.pad) / max(1px, root.cell-height)));
+    // Área onde os painéis são dispostos, e a margem interna de cada painel.
+    out property <length> area-width: term-area.width;
+    out property <length> area-height: term-area.height;
+    out property <length> pane-pad: 6px;
 
     callback new-tab();
     callback select-tab(int);
     callback close-tab(int);
     // Devolve true se a tecla foi tratada.
     callback key-input(string, bool, bool, bool) -> bool;
-    callback grid-resized(int, int);
+    // A área dos painéis ou o tamanho da célula mudou.
+    callback area-resized();
+    callback split-right();
+    callback split-down();
+    // Os callbacks abaixo recebem primeiro o id do painel.
     // Linhas a rolar: positivo sobe no histórico.
-    callback scroll-lines(int);
+    callback scroll-lines(int, int);
     // Seleção com o mouse, em (linha, coluna) da grade; podem vir fora dos limites.
-    callback select-start(int, int);
+    callback select-start(int, int, int);
     callback select-move(int, int);
     callback select-end();
-    callback select-word(int, int);
+    callback select-word(int, int, int);
     // Botão direito: copia a seleção ou cola.
-    callback secondary-click();
+    callback secondary-click(int);
     // Recarregar a lista da memória (painel aberto, busca ou filtro mudou).
     callback memory-refresh();
     callback memory-delete(int);
@@ -146,8 +157,10 @@ export component AppWindow inherits Window {
         Palette.color-scheme = ColorScheme.dark;
     }
 
-    changed grid-cols => { root.grid-resized(root.grid-cols, root.grid-rows); }
-    changed grid-rows => { root.grid-resized(root.grid-cols, root.grid-rows); }
+    changed area-width => { root.area-resized(); }
+    changed area-height => { root.area-resized(); }
+    changed cell-width => { root.area-resized(); }
+    changed cell-height => { root.area-resized(); }
 
     public function focus-terminal() {
         key-handler.focus();
@@ -160,14 +173,6 @@ export component AppWindow inherits Window {
         } else {
             key-handler.focus();
         }
-    }
-
-    // Célula sob um ponto da área do terminal.
-    pure function cell-row(y: length) -> int {
-        floor((y - term-area.pad) / root.cell-height)
-    }
-    pure function cell-col(x: length) -> int {
-        floor((x - term-area.pad) / root.cell-width)
     }
 
     measure := Text {
@@ -220,9 +225,27 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                // Empurra o botão "Memória" para a direita; as abas ficam perto do tamanho natural.
+                // Empurra os botões abaixo para a direita; as abas ficam perto do tamanho natural.
                 Rectangle {
                     horizontal-stretch: 1000;
+                }
+
+                split-right-btn := SplitButton {
+                    side-by-side: true;
+                    label: "Dividir ao lado (Alt+Shift+=)";
+                    clicked => {
+                        root.split-right();
+                        key-handler.focus();
+                    }
+                }
+
+                split-down-btn := SplitButton {
+                    side-by-side: false;
+                    label: "Dividir abaixo (Alt+Shift+-)";
+                    clicked => {
+                        root.split-down();
+                        key-handler.focus();
+                    }
                 }
 
                 memory-btn := Rectangle {
@@ -248,37 +271,12 @@ export component AppWindow inherits Window {
 
         body := HorizontalLayout {
             term-area := Rectangle {
-                property <length> pad: 6px;
-                background: Theme.background;
+                // Aparece nos espaços entre os painéis.
+                background: Theme.divider;
                 clip: true;
 
-                mouse := TouchArea {
-                    mouse-cursor: text;
-                    pointer-event(event) => {
-                        if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
-                            key-handler.focus();
-                            root.select-start(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
-                        } else if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
-                            root.select-end();
-                        } else if event.button == PointerEventButton.right && event.kind == PointerEventKind.down {
-                            key-handler.focus();
-                            root.secondary-click();
-                        }
-                    }
-                    moved => {
-                        root.select-move(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
-                    }
-                    double-clicked => {
-                        root.select-word(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
-                    }
-                    scroll-event(event) => {
-                        root.scroll-lines(event.delta-y > 0 ? 3 : -3);
-                        accept
-                    }
-                }
-
                 key-handler := FocusScope {
-                    // O foco vem da TouchArea acima; se o FocusScope tratasse o clique, a seleção não receberia o mouse.
+                    // O foco vem dos cliques nos painéis; se o FocusScope tratasse o clique, a seleção não receberia o mouse.
                     focus-on-click: false;
                     key-pressed(event) => {
                         if event.modifiers.control && event.modifiers.shift && !event.modifiers.alt && (event.text == "m" || event.text == "M") {
@@ -292,59 +290,25 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                grid := Rectangle {
-                    x: term-area.pad;
-                    y: term-area.pad;
-                    width: root.grid-cols * root.cell-width;
-                    height: root.grid-rows * root.cell-height;
-
-                    for line[r] in root.lines: Rectangle {
-                        y: r * root.cell-height;
-                        height: root.cell-height;
-
-                        for run in line.runs: Rectangle {
-                            x: run.col * root.cell-width;
-                            width: run.width * root.cell-width;
-                            background: run.has-bg ? run.bg : transparent;
-
-                            Text {
-                                x: 0;
-                                width: parent.width;
-                                height: parent.height;
-                                text: run.text;
-                                color: run.fg;
-                                font-family: Theme.font-family;
-                                font-size: Theme.font-size;
-                                font-weight: run.bold ? 700 : 400;
-                                font-italic: run.italic;
-                                vertical-alignment: center;
-                            }
-
-                            if run.underline: Rectangle {
-                                y: parent.height - 2px;
-                                height: 1px;
-                                background: run.fg;
-                            }
-                        }
+                for pane in root.panes: TerminalPane {
+                    pane: pane;
+                    cell-width: root.cell-width;
+                    cell-height: root.cell-height;
+                    pad: root.pane-pad;
+                    focused: key-handler.has-focus && pane.active;
+                    highlight: root.panes.length > 1;
+                    select-start(row, col) => {
+                        key-handler.focus();
+                        root.select-start(pane.id, row, col);
                     }
-
-                    for sel in root.selection: Rectangle {
-                        x: sel.col * root.cell-width;
-                        y: sel.row * root.cell-height;
-                        width: sel.width * root.cell-width;
-                        height: root.cell-height;
-                        background: Theme.selection;
+                    select-move(row, col) => { root.select-move(row, col); }
+                    select-end => { root.select-end(); }
+                    select-word(row, col) => { root.select-word(pane.id, row, col); }
+                    secondary-click => {
+                        key-handler.focus();
+                        root.secondary-click(pane.id);
                     }
-
-                    if root.cursor-row >= 0: Rectangle {
-                        x: root.cursor-col * root.cell-width;
-                        y: root.cursor-row * root.cell-height;
-                        width: root.cell-width;
-                        height: root.cell-height;
-                        background: key-handler.has-focus ? Theme.foreground.with-alpha(0.5) : transparent;
-                        border-width: key-handler.has-focus ? 0 : 1px;
-                        border-color: Theme.foreground;
-                    }
+                    scroll-lines(lines) => { root.scroll-lines(pane.id, lines); }
                 }
             }
 

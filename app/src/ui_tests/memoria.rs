@@ -215,7 +215,11 @@ fn capturas() {
 
     println!("{}", medir(&c.app, "AppWindow::memory-panel"));
     println!("{}", medir(&c.app, "AppWindow::term-area"));
-    println!("grade {}×{}", c.app.get_grid_cols(), c.app.get_grid_rows());
+    println!(
+        "área dos painéis {}×{}",
+        c.app.get_area_width(),
+        c.app.get_area_height()
+    );
     println!(
         "{}",
         capturar(&c.app, "AppWindow::memory-panel", "memoria").display()

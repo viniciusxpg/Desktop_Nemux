@@ -5,17 +5,23 @@
 // As capturas vão para <workspace>/target/ui-capturas/<nome>.png.
 
 mod memoria;
+mod paineis;
 mod selecao;
 mod terminal;
 
 use std::fs::{self, File};
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use i_slint_backend_testing::{ElementHandle, TestingBackend, TestingBackendOptions};
-use slint::{ComponentHandle, LogicalSize};
+use portable_pty::CommandBuilder;
+use slint::platform::{PointerEventButton, WindowEvent};
+use slint::{ComponentHandle, LogicalPosition, LogicalSize, Model};
 
 use crate::AppWindow as App;
+use crate::Controllers;
+use crate::layout::PaneId;
 
 // tamanho de uma janela típica; o Nemux não tem rolagem de página
 pub const LARGURA: f32 = 900.0;
@@ -99,4 +105,108 @@ pub fn capturar(app: &App, id: &str, nome: &str) -> PathBuf {
         .expect("gravar o PNG");
 
     caminho
+}
+
+// --- Terminais de verdade (cmd.exe no ConPTY) ---
+
+/// Um `cmd.exe` que imprime `texto` (se houver) e continua aberto.
+pub fn cmd(texto: &str) -> CommandBuilder {
+    let mut cmd = CommandBuilder::new("cmd.exe");
+    if texto.is_empty() {
+        cmd.arg("/k");
+    } else {
+        cmd.args(["/k", &format!("echo {texto}")]);
+    }
+    cmd
+}
+
+/// App com controllers e uma aba com `cmd.exe` imprimindo `texto`. Novos painéis
+/// e abas também abrem `cmd.exe`. O banco de memória nunca é aberto nestes testes.
+pub fn abrir_com_cmd(texto: &str) -> (App, Controllers) {
+    let db = std::env::temp_dir().join("nemux-testes-terminal-nao-usado.db");
+    let (app, controllers) = abrir_com_controllers(&db);
+    {
+        let mut estado = controllers.app.borrow_mut();
+        estado.shell = Box::new(|| cmd(""));
+        estado.new_tab_with(cmd(texto));
+    }
+    (app, controllers)
+}
+
+/// Roda os timers (eventos dos terminais e redesenho) até `pronto` ser verdadeiro.
+pub fn esperar(controllers: &Controllers, o_que: &str, pronto: impl Fn(&crate::app::App) -> bool) {
+    let limite = Instant::now() + Duration::from_secs(15);
+    while Instant::now() < limite {
+        i_slint_backend_testing::mock_elapsed_time(Duration::from_millis(20));
+        if pronto(&controllers.app.borrow()) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    panic!("esperei demais por: {o_que}");
+}
+
+/// Linha da tela do painel `pane` que começa com `texto`, esperando ela aparecer.
+pub fn esperar_texto(controllers: &Controllers, pane: PaneId, texto: &str) -> u16 {
+    let linha = |estado: &crate::app::App| {
+        estado.panes.get(&pane)?.shown.iter().position(|runs| {
+            let linha: String = runs.iter().map(|r| r.text.as_str()).collect();
+            linha.starts_with(texto)
+        })
+    };
+    esperar(controllers, &format!("{texto:?} no painel {pane}"), |e| {
+        linha(e).is_some()
+    });
+    linha(&controllers.app.borrow()).unwrap() as u16
+}
+
+/// Painel `pane` como a interface o recebeu.
+pub fn painel(app: &App, pane: PaneId) -> crate::PaneView {
+    app.get_panes()
+        .iter()
+        .find(|p| p.id as PaneId == pane)
+        .unwrap_or_else(|| panic!("painel {pane} não está na tela"))
+}
+
+/// Centro de uma célula do painel `pane`, em coordenadas da janela.
+pub fn ponto(app: &App, pane: PaneId, linha: u16, coluna: u16) -> LogicalPosition {
+    let area = elemento(app, "AppWindow::term-area").absolute_position();
+    let p = painel(app, pane);
+    let (cw, ch, pad) = (
+        app.get_cell_width(),
+        app.get_cell_height(),
+        app.get_pane_pad(),
+    );
+    LogicalPosition::new(
+        area.x + p.x + pad + (coluna as f32 + 0.5) * cw,
+        area.y + p.y + pad + (linha as f32 + 0.5) * ch,
+    )
+}
+
+pub fn enviar(app: &App, evento: WindowEvent) {
+    app.window().dispatch_event(evento);
+}
+
+pub fn arrastar(app: &App, de: LogicalPosition, ate: LogicalPosition) {
+    let button = PointerEventButton::Left;
+    enviar(app, WindowEvent::PointerMoved { position: de });
+    enviar(
+        app,
+        WindowEvent::PointerPressed {
+            position: de,
+            button,
+        },
+    );
+    enviar(app, WindowEvent::PointerMoved { position: ate });
+    enviar(
+        app,
+        WindowEvent::PointerReleased {
+            position: ate,
+            button,
+        },
+    );
+}
+
+pub fn clicar_em(app: &App, ponto: LogicalPosition) {
+    arrastar(app, ponto, ponto);
 }

@@ -30,8 +30,11 @@ Aba 3: claude ─┘                     ▲
 - **Terminais reais em abas**: cada aba roda um shell no ConPTY do Windows
   (PowerShell por padrão), com cores de 16, 256 e 24 bits, negrito, itálico,
   sublinhado, caracteres largos e 10 mil linhas de histórico.
+- **Painéis divididos**: divida qualquer aba ao lado ou abaixo, quantas vezes
+  quiser, e veja vários terminais (ou várias sessões do Claude) ao mesmo tempo.
 - **Seleção e cópia de texto**: arraste para selecionar, dê duplo clique para
   pegar uma palavra ou um caminho de arquivo inteiro.
+- **Shift+Enter** quebra a linha no prompt do Claude Code sem enviar.
 - **Memória compartilhada via MCP**: um servidor MCP que o Claude Code usa para
   salvar, buscar e apagar memórias.
 - **Painel de memória**: veja, busque, filtre por projeto e apague o que o Claude
@@ -86,8 +89,12 @@ Para remover: `claude mcp remove nemux -s user`.
 | Atalho | Ação |
 |---|---|
 | `Ctrl+Shift+T` | Nova aba |
-| `Ctrl+Shift+W` | Fechar a aba |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Próxima / aba anterior |
+| `Alt+Shift+=` | Dividir o painel ao lado (também pelo botão na barra de abas) |
+| `Alt+Shift+-` | Dividir o painel abaixo |
+| `Alt+←` `→` `↑` `↓` | Ir para o painel vizinho (com um painel só, vão para o programa) |
+| `Ctrl+Shift+W` | Fechar o painel (o último painel fecha a aba) |
+| `Shift+Enter` | Nova linha no prompt do Claude Code, sem enviar |
 | `Ctrl+Shift+C` | Copiar a seleção |
 | `Ctrl+C` | Copiar, se houver seleção; senão interrompe o programa |
 | `Ctrl+V` / `Ctrl+Shift+V` | Colar |
@@ -138,7 +145,10 @@ memória usam sempre um banco temporário.
 
 - Só funciona no Windows por enquanto.
 - Arrastar a seleção além da borda não rola o histórico, e não há triplo clique.
-- `Shift+Enter` não é diferenciado de `Enter`.
+- Os painéis sempre dividem o espaço ao meio; ainda não dá para arrastar a divisória.
+- `Shift+Enter` envia `ESC CR` (o mesmo que `Alt+Enter`): é o que o Claude Code
+  entende como nova linha, e o ConPTY do Windows 10 descarta as codificações
+  modernas da tecla. Programas que esperam um Shift+Enter "de verdade" não o recebem.
 - O painel de memória ainda não cria nem edita memórias, só lista, busca e apaga.
 
 ## Licença

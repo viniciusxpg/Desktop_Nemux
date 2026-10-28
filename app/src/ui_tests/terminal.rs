@@ -3,26 +3,47 @@ use std::num::NonZeroU16;
 use std::rc::Rc;
 
 use i_slint_backend_testing::ElementHandle;
-use slint::{ComponentHandle, ModelRc, VecModel};
+use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
-use super::{ALTURA, LARGURA, abrir, abrir_com_controllers, capturar, elemento, medir};
+use super::{ALTURA, LARGURA, abrir, abrir_com_cmd, capturar, elemento, esperar, medir, painel};
+use crate::layout::{Rect, grid_size};
 use crate::terminal::{Callbacks, Parser, snapshot};
-use crate::{AppWindow, TabInfo};
+use crate::{AppWindow, PaneView, TabInfo};
 
-/// Passa `ansi` por um parser vt100 do tamanho da grade e mostra o resultado na janela,
-/// do mesmo jeito que `App::render` faz.
+/// Passa `ansi` por um parser vt100 do tamanho de um painel que ocupa a área toda
+/// e o mostra na janela, do mesmo jeito que `App::render` faz.
 fn mostrar(app: &AppWindow, ansi: &str) {
-    let rows = NonZeroU16::new(app.get_grid_rows() as u16).unwrap();
-    let cols = NonZeroU16::new(app.get_grid_cols() as u16).unwrap();
-    let mut parser = Parser::new_with_callbacks(rows, cols, 0, Callbacks::default());
+    let (w, h) = (app.get_area_width(), app.get_area_height());
+    let (cols, rows) = grid_size(
+        Rect::new(0.0, 0.0, w, h),
+        app.get_cell_width(),
+        app.get_cell_height(),
+        app.get_pane_pad(),
+    );
+    let mut parser = Parser::new_with_callbacks(
+        NonZeroU16::new(rows).unwrap(),
+        NonZeroU16::new(cols).unwrap(),
+        0,
+        Callbacks::default(),
+    );
     parser.process(ansi.as_bytes());
     let snap = snapshot(parser.screen());
 
-    let lines: Vec<_> = snap.lines.iter().map(|l| crate::to_line(l)).collect();
-    app.set_lines(ModelRc::new(VecModel::from(lines)));
-    let (row, col) = snap.cursor.map_or((-1, 0), |(r, c)| (r as i32, c as i32));
-    app.set_cursor_row(row);
-    app.set_cursor_col(col);
+    let lines: Vec<_> = snap.lines.iter().map(|l| crate::app::to_line(l)).collect();
+    let (cursor_row, cursor_col) = snap.cursor.map_or((-1, 0), |(r, c)| (r as i32, c as i32));
+    let view = PaneView {
+        id: 0,
+        x: 0.0,
+        y: 0.0,
+        width: w,
+        height: h,
+        lines: ModelRc::new(VecModel::from(lines)),
+        cursor_row,
+        cursor_col,
+        selection: ModelRc::default(),
+        active: true,
+    };
+    app.set_panes(ModelRc::new(VecModel::from(vec![view])));
 }
 
 fn abas(app: &AppWindow, titulos: &[&str], ativa: i32) {
@@ -41,57 +62,79 @@ fn aba(app: &AppWindow, label: &str) -> ElementHandle {
 }
 
 #[test]
-fn grade_preenche_a_area_do_terminal() {
+fn area_dos_paineis_fica_abaixo_das_abas() {
     let app = abrir();
     let (cw, ch) = (app.get_cell_width(), app.get_cell_height());
     assert!(
         cw > 5.0 && ch > 10.0,
         "célula com tamanho estranho: {cw}×{ch}"
     );
+    // 32px de barra de abas.
+    assert_eq!(
+        (app.get_area_width(), app.get_area_height()),
+        (LARGURA, ALTURA - 32.0)
+    );
 
-    // 32px de barra de abas e 6px de margem em volta da grade.
-    let cols = ((LARGURA - 12.0) / cw).floor() as i32;
-    let rows = ((ALTURA - 32.0 - 12.0) / ch).floor() as i32;
-    assert_eq!((app.get_grid_cols(), app.get_grid_rows()), (cols, rows));
+    mostrar(&app, "oi");
+    let grade = elemento(&app, "TerminalPane::grid");
+    let pad = app.get_pane_pad();
+    assert_eq!(grade.size().width, LARGURA - 2.0 * pad);
+    assert_eq!(grade.size().height, ALTURA - 32.0 - 2.0 * pad);
+}
 
-    let grade = elemento(&app, "AppWindow::grid");
-    let area = elemento(&app, "AppWindow::term-area");
-    assert!(grade.size().width <= area.size().width);
-    assert!(grade.size().height <= area.size().height);
+#[test]
+fn um_painel_ocupa_a_area_e_o_terminal_cabe_nele() {
+    let (app, controllers) = abrir_com_cmd("oi");
+    esperar(&controllers, "o painel aparecer", |_| {
+        app.get_panes().row_count() == 1
+    });
+
+    let p = painel(&app, 0);
+    assert_eq!(
+        (p.x, p.y, p.width, p.height),
+        (0.0, 0.0, LARGURA, ALTURA - 32.0)
+    );
+    let esperado = grid_size(
+        Rect::new(0.0, 0.0, p.width, p.height),
+        app.get_cell_width(),
+        app.get_cell_height(),
+        app.get_pane_pad(),
+    );
+    let estado = controllers.app.borrow();
+    let pane = &estado.panes[&0];
+    assert_eq!((pane.cols, pane.rows), esperado);
 }
 
 #[test]
 fn redimensionar_a_janela_redimensiona_o_terminal() {
-    let dir = tempfile::tempdir().unwrap();
-    let (app, controllers) = abrir_com_controllers(&dir.path().join("nemux.db"));
+    let (app, controllers) = abrir_com_cmd("oi");
     app.window().set_size(slint::LogicalSize::new(600.0, 300.0));
-    // O `changed` roda no próximo ciclo; ler a propriedade força o cálculo.
-    let (cols, rows) = (app.get_grid_cols(), app.get_grid_rows());
-    processar_pendentes(&app);
+    // Os `changed` rodam no próximo ciclo.
+    esperar(&controllers, "o terminal encolher", |e| {
+        e.panes[&0].cols < 80
+    });
 
-    let estado = controllers.app.borrow();
-    assert_eq!((estado.cols as i32, estado.rows as i32), (cols, rows));
-    assert!(
-        cols < 80,
-        "600px deveriam caber menos de 80 colunas, deu {cols}"
+    let p = painel(&app, 0);
+    assert_eq!((p.width, p.height), (600.0, 300.0 - 32.0));
+    let esperado = grid_size(
+        Rect::new(0.0, 0.0, 600.0, 268.0),
+        app.get_cell_width(),
+        app.get_cell_height(),
+        app.get_pane_pad(),
     );
-}
-
-/// Avança o relógio simulado e redesenha, para rodar os `changed` pendentes.
-fn processar_pendentes(app: &AppWindow) {
-    i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(16));
-    let _ = app.window().take_snapshot();
+    let estado = controllers.app.borrow();
+    assert_eq!((estado.panes[&0].cols, estado.panes[&0].rows), esperado);
 }
 
 #[test]
 fn mostra_texto_e_cursor() {
     let app = abrir();
     mostrar(&app, "PS C:\\> echo oi\r\noi\r\nPS C:\\> ");
-    assert_eq!(app.get_cursor_row(), 2);
-    assert_eq!(app.get_cursor_col(), 8);
+    let p = painel(&app, 0);
+    assert_eq!((p.cursor_row, p.cursor_col), (2, 8));
 
     mostrar(&app, "\x1b[?25l");
-    assert_eq!(app.get_cursor_row(), -1);
+    assert_eq!(painel(&app, 0).cursor_row, -1);
 }
 
 #[test]
@@ -160,14 +203,8 @@ fn capturas() {
 
     println!("{}", medir(&app, "AppWindow::tab-bar"));
     println!("{}", medir(&app, "AppWindow::term-area"));
-    println!("{}", medir(&app, "AppWindow::grid"));
-    println!(
-        "célula {}×{}  grade {}×{}",
-        app.get_cell_width(),
-        app.get_cell_height(),
-        app.get_grid_cols(),
-        app.get_grid_rows()
-    );
+    println!("{}", medir(&app, "TerminalPane::grid"));
+    println!("célula {}×{}", app.get_cell_width(), app.get_cell_height());
     println!("{}", capturar(&app, "AppWindow::tab-bar", "abas").display());
     println!(
         "{}",

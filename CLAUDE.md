@@ -10,13 +10,19 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
 - `mcp-server/` (`nemux-mcp`): servidor MCP via stdio (crate `rmcp`) com as
   ferramentas `memory_save`, `memory_search`, `memory_recent`, `memory_delete`.
 - `app/` (`nemux-app`): interface Slint.
+  - `src/app.rs`: estado do app (`App`): abas, painéis (cada um com seu
+    `Terminal`), seleção, área de transferência, atalhos e `render()`.
+  - `src/layout.rs`: árvore de painéis de uma aba (`Node`), retângulo de cada
+    painel e vizinho numa direção. O Slint não tem componentes recursivos, então
+    a interface recebe só a lista de painéis já posicionados (`PaneView`).
   - `src/terminal.rs`: PTY (`portable-pty`, ConPTY) + parser `vt100`; `snapshot()`
     transforma a tela em trechos (`Run`) com o mesmo estilo.
   - `src/keys.rs`: teclas do Slint → sequências de terminal.
   - `src/selection.rs`: seleção de texto com o mouse.
   - `src/memory_view.rs`: painel de memória (lê o mesmo banco do servidor MCP).
-  - `src/main.rs`: estado do app (`App`), `init_controllers` e os callbacks.
-  - `ui/app-window.slint` (janela, abas, grade), `ui/memory-panel.slint`,
+  - `src/main.rs`: `init_controllers`, que liga os callbacks da interface ao `App`.
+  - `ui/app-window.slint` (janela, abas, área dos painéis), `ui/terminal-pane.slint`
+    (um painel: grade, seleção, cursor, mouse), `ui/memory-panel.slint`,
     `ui/theme.slint` (cores e fonte).
   - `ui/icons/nemux.svg` (e `nemux-small.svg`, para 16 e 24 px): o ícone. É a
     única fonte: a janela usa o SVG direto, e o `build.rs` gera o `.ico` e o
@@ -72,4 +78,10 @@ janela (backend de testes do Slint + renderizador por software):
   gravam no mesmo arquivo. O painel recarrega quando `PRAGMA data_version` muda.
 - No Windows, AltGr chega como Ctrl+Alt: `keys::encode` só trata como Ctrl
   quando a tecla é uma letra.
+- Shift+Enter envia `ESC CR`. Testado no ConPTY do Windows 10: `CSI 13;2u`,
+  modifyOtherKeys e win32-input-mode são descartados antes de chegar ao programa;
+  `ESC CR` chega ao Node como `\x1b\r` (o Claude Code quebra a linha) e ao
+  PowerShell como Alt+Enter (não executa nada).
+- Os testes de UI que precisam de terminal usam `abrir_com_cmd` (em
+  `ui_tests/mod.rs`): `cmd.exe` em vez do PowerShell, inclusive nos painéis novos.
 - O Slint não formata `.slint` com `cargo fmt`: mantenha a indentação à mão.
