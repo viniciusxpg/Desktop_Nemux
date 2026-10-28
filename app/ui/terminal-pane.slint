@@ -37,6 +37,11 @@ export struct PaneView {
     selection: [SelRect],
     // Painel que recebe o teclado.
     active: bool,
+    // Linhas visíveis, linhas no histórico acima da tela e quantas linhas acima
+    // do fim a tela está (0 = ao vivo): alimentam a barra de rolagem.
+    rows: int,
+    history: int,
+    offset: int,
 }
 
 export component TerminalPane inherits Rectangle {
@@ -44,6 +49,8 @@ export component TerminalPane inherits Rectangle {
     in property <length> cell-width;
     in property <length> cell-height;
     in property <length> pad;
+    // Faixa reservada à direita para a barra de rolagem.
+    in property <length> scrollbar-width;
     // O teclado está no terminal e este é o painel ativo: cursor cheio.
     in property <bool> focused;
     // Há mais de um painel: o ativo ganha uma borda.
@@ -58,6 +65,8 @@ export component TerminalPane inherits Rectangle {
     callback secondary-click();
     // Linhas a rolar: positivo sobe no histórico.
     callback scroll-lines(int);
+    // Posição absoluta no histórico: linhas acima do fim (barra de rolagem).
+    callback scroll-to(int);
 
     x: root.pane.x;
     y: root.pane.y;
@@ -100,7 +109,7 @@ export component TerminalPane inherits Rectangle {
     grid := Rectangle {
         x: root.pad;
         y: root.pad;
-        width: root.width - 2 * root.pad;
+        width: root.width - 2 * root.pad - root.scrollbar-width;
         height: root.height - 2 * root.pad;
 
         for line[r] in root.pane.lines: Rectangle {
@@ -149,6 +158,52 @@ export component TerminalPane inherits Rectangle {
             background: root.focused ? Theme.foreground.with-alpha(0.5) : transparent;
             border-width: root.focused ? 0 : 1px;
             border-color: Theme.muted;
+        }
+    }
+
+    if root.pane.history > 0: scrollbar := Rectangle {
+        x: root.width - root.scrollbar-width;
+        y: 2px;
+        width: root.scrollbar-width;
+        height: root.height - 4px;
+        // Fração do conteúdo (histórico + tela) que está visível.
+        property <float> visible-fraction: root.pane.rows / (root.pane.history + root.pane.rows);
+        // Espaço livre para o polegar andar dentro do trilho.
+        property <length> free: self.height - thumb.height;
+
+        // Clicar no trilho acima ou abaixo do polegar rola uma página.
+        track-touch := TouchArea {
+            clicked => {
+                if self.mouse-y < thumb.y {
+                    root.scroll-lines(max(1, root.pane.rows - 1));
+                } else if self.mouse-y > thumb.y + thumb.height {
+                    root.scroll-lines(-max(1, root.pane.rows - 1));
+                }
+            }
+        }
+
+        thumb := Rectangle {
+            x: 2px;
+            width: parent.width - 4px;
+            height: max(24px, parent.height * parent.visible-fraction);
+            // offset = histórico: topo; offset = 0: fim.
+            y: parent.free * (root.pane.history - root.pane.offset) / root.pane.history;
+            border-radius: 3px;
+            background: thumb-touch.pressed ? #ffffff80 : (thumb-touch.has-hover || track-touch.has-hover ? #ffffff50 : #ffffff28);
+
+            thumb-touch := TouchArea {
+                // Onde o polegar foi agarrado, para ele não pular ao começar o arraste.
+                property <length> grab;
+                pointer-event(event) => {
+                    if event.kind == PointerEventKind.down {
+                        self.grab = self.mouse-y;
+                    }
+                }
+                moved => {
+                    // thumb.y + mouse-y é a posição do ponteiro no trilho, mesmo com o polegar se movendo.
+                    root.scroll-to(root.pane.history - round(clamp((thumb.y + self.mouse-y - self.grab) / max(1px, scrollbar.free), 0, 1) * root.pane.history));
+                }
+            }
         }
     }
 

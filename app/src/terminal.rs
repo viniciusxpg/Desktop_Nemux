@@ -165,7 +165,16 @@ impl Terminal {
 
     /// Volta para o fim do histórico (tela ao vivo).
     pub fn scroll_to_bottom(&self) {
-        self.parser.lock().unwrap().screen_mut().set_scrollback(0);
+        self.scroll_to(0);
+    }
+
+    /// Mostra a tela `offset` linhas acima do fim do histórico (0 = ao vivo).
+    pub fn scroll_to(&self, offset: usize) {
+        self.parser
+            .lock()
+            .unwrap()
+            .screen_mut()
+            .set_scrollback(offset);
     }
 
     pub fn application_cursor(&self) -> bool {
@@ -225,6 +234,10 @@ pub struct Snapshot {
     pub lines: Vec<Vec<Run>>,
     /// (linha, coluna) do cursor, se visível.
     pub cursor: Option<(u16, u16)>,
+    /// Linhas guardadas no histórico, acima da tela.
+    pub history: usize,
+    /// Quantas linhas acima do fim a tela está mostrando (0 = ao vivo).
+    pub offset: usize,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -243,7 +256,12 @@ pub fn snapshot(screen: &vt100::Screen) -> Snapshot {
         .collect();
     let cursor =
         (!screen.hide_cursor() && screen.scrollback() == 0).then(|| screen.cursor_position());
-    Snapshot { lines, cursor }
+    Snapshot {
+        lines,
+        cursor,
+        history: screen.scrollback_len(),
+        offset: screen.scrollback(),
+    }
 }
 
 fn line_runs(screen: &vt100::Screen, row: u16, cols: u16) -> Vec<Run> {
@@ -453,10 +471,15 @@ mod tests {
         p.process(b"1\r\n2\r\n3\r\n4");
         let mut snap = snapshot(p.screen());
         assert_eq!(snap.lines[0][0].text, "3");
+        assert_eq!((snap.history, snap.offset), (2, 0));
         p.screen_mut().set_scrollback(2);
         snap = snapshot(p.screen());
         assert_eq!(snap.lines[0][0].text, "1");
+        assert_eq!((snap.history, snap.offset), (2, 2));
         assert_eq!(snap.cursor, None);
+        // Além do topo, o vt100 limita ao tamanho do histórico.
+        p.screen_mut().set_scrollback(99);
+        assert_eq!(snapshot(p.screen()).offset, 2);
         p.screen_mut().set_scrollback(0);
         p.process(b"\x1b[?25l");
         assert_eq!(snapshot(p.screen()).cursor, None);

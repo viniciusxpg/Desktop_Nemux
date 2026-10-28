@@ -62,6 +62,7 @@ fn metrics(ui: &AppWindow) -> Metrics {
         cell_w: ui.get_cell_width(),
         cell_h: ui.get_cell_height(),
         pad: ui.get_pane_pad(),
+        scrollbar: ui.get_scrollbar_width(),
     }
 }
 
@@ -137,6 +138,10 @@ pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
     ui.on_scroll_lines({
         let on_change = on_change.clone();
         move |pane, lines| on_change(&|app| app.scroll(pane_id(pane), lines as isize))
+    });
+    ui.on_scroll_to({
+        let on_change = on_change.clone();
+        move |pane, offset| on_change(&|app| app.scroll_to(pane_id(pane), offset.max(0) as usize))
     });
     ui.on_select_start({
         let on_change = on_change.clone();

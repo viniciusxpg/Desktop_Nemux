@@ -6,6 +6,7 @@
 
 mod memoria;
 mod paineis;
+mod rolagem;
 mod selecao;
 mod sessoes;
 mod terminal;

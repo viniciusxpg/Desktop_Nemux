@@ -135,6 +135,7 @@ export component AppWindow inherits Window {
     out property <length> area-width: term-area.width;
     out property <length> area-height: term-area.height;
     out property <length> pane-pad: 6px;
+    out property <length> scrollbar-width: 10px;
 
     callback new-tab();
     callback select-tab(int);
@@ -148,6 +149,8 @@ export component AppWindow inherits Window {
     // Os callbacks abaixo recebem primeiro o id do painel.
     // Linhas a rolar: positivo sobe no histórico.
     callback scroll-lines(int, int);
+    // Posição no histórico vinda da barra de rolagem: linhas acima do fim.
+    callback scroll-to(int, int);
     // Seleção com o mouse, em (linha, coluna) da grade; podem vir fora dos limites.
     callback select-start(int, int, int);
     callback select-move(int, int);
@@ -339,6 +342,7 @@ export component AppWindow inherits Window {
                     cell-width: root.cell-width;
                     cell-height: root.cell-height;
                     pad: root.pane-pad;
+                    scrollbar-width: root.scrollbar-width;
                     focused: key-handler.has-focus && pane.active;
                     highlight: root.panes.length > 1;
                     select-start(row, col) => {
@@ -353,6 +357,7 @@ export component AppWindow inherits Window {
                         root.secondary-click(pane.id);
                     }
                     scroll-lines(lines) => { root.scroll-lines(pane.id, lines); }
+                    scroll-to(offset) => { root.scroll-to(pane.id, offset); }
                 }
             }
 

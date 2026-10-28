@@ -19,6 +19,7 @@ fn mostrar(app: &AppWindow, ansi: &str) {
         app.get_cell_width(),
         app.get_cell_height(),
         app.get_pane_pad(),
+        app.get_scrollbar_width(),
     );
     let mut parser = Parser::new_with_callbacks(
         NonZeroU16::new(rows).unwrap(),
@@ -42,6 +43,9 @@ fn mostrar(app: &AppWindow, ansi: &str) {
         cursor_col,
         selection: ModelRc::default(),
         active: true,
+        rows: rows as i32,
+        history: 0,
+        offset: 0,
     };
     app.set_panes(ModelRc::new(VecModel::from(vec![view])));
 }
@@ -78,7 +82,11 @@ fn area_dos_paineis_fica_abaixo_das_abas() {
     mostrar(&app, "oi");
     let grade = elemento(&app, "TerminalPane::grid");
     let pad = app.get_pane_pad();
-    assert_eq!(grade.size().width, LARGURA - 2.0 * pad);
+    assert_eq!(
+        grade.size().width,
+        LARGURA - 2.0 * pad - app.get_scrollbar_width(),
+        "a barra de rolagem tem faixa própria"
+    );
     assert_eq!(grade.size().height, ALTURA - 32.0 - 2.0 * pad);
 }
 
@@ -99,6 +107,7 @@ fn um_painel_ocupa_a_area_e_o_terminal_cabe_nele() {
         app.get_cell_width(),
         app.get_cell_height(),
         app.get_pane_pad(),
+        app.get_scrollbar_width(),
     );
     let estado = controllers.app.borrow();
     let pane = &estado.panes[&0];
@@ -121,6 +130,7 @@ fn redimensionar_a_janela_redimensiona_o_terminal() {
         app.get_cell_width(),
         app.get_cell_height(),
         app.get_pane_pad(),
+        app.get_scrollbar_width(),
     );
     let estado = controllers.app.borrow();
     assert_eq!((estado.panes[&0].cols, estado.panes[&0].rows), esperado);

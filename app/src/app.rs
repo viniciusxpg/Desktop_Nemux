@@ -44,6 +44,8 @@ pub struct Metrics {
     pub cell_h: f32,
     /// Margem interna de cada painel.
     pub pad: f32,
+    /// Largura reservada à direita de cada painel para a barra de rolagem.
+    pub scrollbar: f32,
 }
 
 pub struct App {
@@ -96,7 +98,7 @@ impl App {
 
     fn grid_size(&self, rect: Rect) -> (u16, u16) {
         let m = self.metrics;
-        layout::grid_size(rect, m.cell_w, m.cell_h, m.pad)
+        layout::grid_size(rect, m.cell_w, m.cell_h, m.pad, m.scrollbar)
     }
 
     pub fn active_pane_id(&self) -> Option<PaneId> {
@@ -281,7 +283,8 @@ impl App {
         for tab in &self.tabs {
             for (id, rect) in tab.layout.rects(area, PANE_GAP) {
                 if let Some(pane) = self.panes.get_mut(&id) {
-                    let (cols, rows) = layout::grid_size(rect, m.cell_w, m.cell_h, m.pad);
+                    let (cols, rows) =
+                        layout::grid_size(rect, m.cell_w, m.cell_h, m.pad, m.scrollbar);
                     pane.cols = cols;
                     pane.rows = rows;
                     pane.term.resize(rows, cols);
@@ -306,6 +309,13 @@ impl App {
     pub fn scroll(&mut self, pane: PaneId, lines: isize) {
         if let Some(p) = self.panes.get(&pane) {
             p.term.scroll(lines);
+        }
+    }
+
+    /// Posiciona o histórico do painel `offset` linhas acima do fim (barra de rolagem).
+    pub fn scroll_to(&mut self, pane: PaneId, offset: usize) {
+        if let Some(p) = self.panes.get(&pane) {
+            p.term.scroll_to(offset);
         }
     }
 
@@ -586,6 +596,9 @@ impl App {
             cursor_col,
             selection: ModelRc::new(VecModel::from(sel_rects)),
             active,
+            rows: pane.rows as i32,
+            history: snap.history as i32,
+            offset: snap.offset as i32,
         })
     }
 }

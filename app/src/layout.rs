@@ -185,14 +185,15 @@ pub fn neighbor(rects: &[(PaneId, Rect)], from: PaneId, dir: Direction) -> Optio
         .map(|(_, _, id)| id)
 }
 
-/// Colunas e linhas de terminal que cabem num painel.
-pub fn grid_size(rect: Rect, cell_w: f32, cell_h: f32, pad: f32) -> (u16, u16) {
-    let fit = |space: f32, cell: f32| {
-        ((space - 2.0 * pad) / cell.max(1.0))
-            .floor()
-            .clamp(1.0, u16::MAX as f32) as u16
-    };
-    (fit(rect.w, cell_w), fit(rect.h, cell_h))
+/// Colunas e linhas de terminal que cabem num painel, com `pad` px de margem em
+/// volta e `scrollbar` px reservados à direita para a barra de rolagem.
+pub fn grid_size(rect: Rect, cell_w: f32, cell_h: f32, pad: f32, scrollbar: f32) -> (u16, u16) {
+    let fit =
+        |space: f32, cell: f32| (space / cell.max(1.0)).floor().clamp(1.0, u16::MAX as f32) as u16;
+    (
+        fit(rect.w - 2.0 * pad - scrollbar, cell_w),
+        fit(rect.h - 2.0 * pad, cell_h),
+    )
 }
 
 #[cfg(test)]
@@ -276,11 +277,11 @@ mod tests {
     #[test]
     fn grid_size_respects_padding() {
         assert_eq!(
-            grid_size(Rect::new(0.0, 0.0, 812.0, 352.0), 8.0, 17.0, 6.0),
+            grid_size(Rect::new(0.0, 0.0, 822.0, 352.0), 8.0, 17.0, 6.0, 10.0),
             (100, 20)
         );
         assert_eq!(
-            grid_size(Rect::new(0.0, 0.0, 5.0, 5.0), 8.0, 17.0, 6.0),
+            grid_size(Rect::new(0.0, 0.0, 5.0, 5.0), 8.0, 17.0, 6.0, 10.0),
             (1, 1)
         );
     }

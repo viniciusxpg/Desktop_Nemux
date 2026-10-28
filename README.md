@@ -102,7 +102,7 @@ Para remover: `claude mcp remove nemux -s user`.
 | `Ctrl+C` | Copiar, se houver seleção; senão interrompe o programa |
 | `Ctrl+V` / `Ctrl+Shift+V` | Colar |
 | Botão direito | Copiar a seleção, ou colar se não houver seleção |
-| `Shift+PageUp` / `Shift+PageDown` | Rolar o histórico (também com a roda do mouse) |
+| `Shift+PageUp` / `Shift+PageDown` | Rolar o histórico (também com a roda do mouse ou a barra de rolagem de cada painel) |
 | `Ctrl+Shift+M` | Abrir / fechar o painel de memória |
 | `Ctrl+Shift+R` | Retomar uma sessão do Claude Code (também pelo botão "Sessões") |
 
