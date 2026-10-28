@@ -175,6 +175,11 @@ impl Terminal {
     pub fn snapshot(&self) -> Snapshot {
         snapshot(self.parser.lock().unwrap().screen())
     }
+
+    /// Acesso de leitura à tela (ex.: para extrair o texto selecionado).
+    pub fn with_screen<T>(&self, f: impl FnOnce(&vt100::Screen) -> T) -> T {
+        f(self.parser.lock().unwrap().screen())
+    }
 }
 
 impl Drop for Terminal {

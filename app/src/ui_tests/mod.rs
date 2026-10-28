@@ -4,6 +4,7 @@
 //
 // As capturas vão para <workspace>/target/ui-capturas/<nome>.png.
 
+mod selecao;
 mod terminal;
 
 use std::fs::{self, File};

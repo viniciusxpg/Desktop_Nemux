@@ -14,6 +14,13 @@ export struct TermLine {
     runs: [TermRun],
 }
 
+// Trecho selecionado numa linha da grade.
+export struct SelRect {
+    row: int,
+    col: int,
+    width: int,
+}
+
 export struct TabInfo {
     title: string,
 }
@@ -26,6 +33,7 @@ global Theme {
     out property <color> tab-hover: #383838;
     out property <color> muted: #8a8a8a;
     out property <color> accent: #3b78ff;
+    out property <color> selection: #3b78ff66;
     out property <string> font-family: "Consolas";
     out property <length> font-size: 14px;
 }
@@ -103,6 +111,7 @@ export component AppWindow inherits Window {
     // Linha/coluna do cursor; -1 = escondido.
     in property <int> cursor-row: -1;
     in property <int> cursor-col;
+    in property <[SelRect]> selection;
 
     // Tamanho de uma célula, medido com a própria fonte.
     out property <length> cell-width: measure.preferred-width / 10;
@@ -119,12 +128,27 @@ export component AppWindow inherits Window {
     callback grid-resized(int, int);
     // Linhas a rolar: positivo sobe no histórico.
     callback scroll-lines(int);
+    // Seleção com o mouse, em (linha, coluna) da grade; podem vir fora dos limites.
+    callback select-start(int, int);
+    callback select-move(int, int);
+    callback select-end();
+    callback select-word(int, int);
+    // Botão direito: copia a seleção ou cola.
+    callback secondary-click();
 
     changed grid-cols => { root.grid-resized(root.grid-cols, root.grid-rows); }
     changed grid-rows => { root.grid-resized(root.grid-cols, root.grid-rows); }
 
     public function focus-terminal() {
         key-handler.focus();
+    }
+
+    // Célula sob um ponto da área do terminal.
+    pure function cell-row(y: length) -> int {
+        floor((y - term-area.pad) / root.cell-height)
+    }
+    pure function cell-col(x: length) -> int {
+        floor((x - term-area.pad) / root.cell-width)
     }
 
     measure := Text {
@@ -185,9 +209,25 @@ export component AppWindow inherits Window {
             background: Theme.background;
             clip: true;
 
-            TouchArea {
+            mouse := TouchArea {
                 mouse-cursor: text;
-                clicked => { key-handler.focus(); }
+                pointer-event(event) => {
+                    if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                        key-handler.focus();
+                        root.select-start(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+                    } else if event.button == PointerEventButton.left && event.kind == PointerEventKind.up {
+                        root.select-end();
+                    } else if event.button == PointerEventButton.right && event.kind == PointerEventKind.down {
+                        key-handler.focus();
+                        root.secondary-click();
+                    }
+                }
+                moved => {
+                    root.select-move(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+                }
+                double-clicked => {
+                    root.select-word(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
+                }
                 scroll-event(event) => {
                     root.scroll-lines(event.delta-y > 0 ? 3 : -3);
                     accept
@@ -195,6 +235,8 @@ export component AppWindow inherits Window {
             }
 
             key-handler := FocusScope {
+                // O foco vem da TouchArea acima; se o FocusScope tratasse o clique, a seleção não receberia o mouse.
+                focus-on-click: false;
                 key-pressed(event) => {
                     if root.key-input(event.text, event.modifiers.control, event.modifiers.alt, event.modifiers.shift) {
                         return accept;
@@ -237,6 +279,14 @@ export component AppWindow inherits Window {
                             background: run.fg;
                         }
                     }
+                }
+
+                for sel in root.selection: Rectangle {
+                    x: sel.col * root.cell-width;
+                    y: sel.row * root.cell-height;
+                    width: sel.width * root.cell-width;
+                    height: root.cell-height;
+                    background: Theme.selection;
                 }
 
                 if root.cursor-row >= 0: Rectangle {

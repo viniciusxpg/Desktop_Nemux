@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod keys;
+mod selection;
 mod terminal;
 #[cfg(test)]
 mod ui_tests;
@@ -15,6 +16,7 @@ use portable_pty::CommandBuilder;
 use slint::{Model, ModelRc, SharedString, VecModel};
 
 use keys::Mods;
+use selection::Selection;
 use terminal::{Event, Rgb, Run, Terminal};
 
 slint::include_modules!();
@@ -36,14 +38,124 @@ struct App {
     /// Linhas mostradas na tela, para atualizar só as que mudaram.
     lines_model: Rc<VecModel<TermLine>>,
     shown: Vec<Vec<Run>>,
+    /// Seleção e o id da aba onde ela foi feita.
+    selection: Option<(u64, Selection)>,
+    /// O botão esquerdo está pressionado sobre o terminal.
+    selecting: bool,
+    /// O ponteiro saiu da célula inicial (um clique simples não seleciona).
+    dragged: bool,
+    /// Texto capturado quando a seleção terminou; é o que será copiado.
+    selected_text: Option<String>,
 }
 
 impl App {
+    fn active_id(&self) -> Option<u64> {
+        self.tabs.get(self.active).map(|t| t.id)
+    }
+
+    /// Converte coordenadas vindas da interface (podem sair da grade) numa célula válida.
+    fn clamp_cell(&self, row: i32, col: i32) -> (u16, u16) {
+        let row = row.clamp(0, self.rows.saturating_sub(1) as i32) as u16;
+        let col = col.clamp(0, self.cols.saturating_sub(1) as i32) as u16;
+        (row, col)
+    }
+
+    fn start_selection(&mut self, row: i32, col: i32) {
+        let (row, col) = self.clamp_cell(row, col);
+        self.selection = self.active_id().map(|id| (id, Selection::at(row, col)));
+        self.selected_text = None;
+        self.selecting = true;
+        self.dragged = false;
+    }
+
+    fn move_selection(&mut self, row: i32, col: i32) {
+        let cell = self.clamp_cell(row, col);
+        if let (true, Some((_, sel))) = (self.selecting, self.selection.as_mut()) {
+            sel.head = cell;
+            self.dragged |= sel.head != sel.anchor;
+        }
+    }
+
+    fn end_selection(&mut self) {
+        if !self.selecting {
+            return;
+        }
+        self.selecting = false;
+        if self.dragged {
+            self.capture_selection();
+        } else {
+            self.clear_selection();
+        }
+    }
+
+    fn select_word(&mut self, row: i32, col: i32) {
+        let (row, col) = self.clamp_cell(row, col);
+        let Some(tab) = self.tabs.get(self.active) else {
+            return;
+        };
+        let sel = tab
+            .term
+            .with_screen(|screen| Selection::word(screen, row, col));
+        self.selection = Some((tab.id, sel));
+        self.selecting = false;
+        self.capture_selection();
+    }
+
+    fn capture_selection(&mut self) {
+        let text = match (&self.selection, self.tabs.get(self.active)) {
+            (Some((id, sel)), Some(tab)) if *id == tab.id => tab.term.with_screen(|s| sel.text(s)),
+            _ => String::new(),
+        };
+        if text.trim().is_empty() {
+            self.clear_selection();
+        } else {
+            self.selected_text = Some(text);
+        }
+    }
+
+    fn clear_selection(&mut self) {
+        self.selection = None;
+        self.selected_text = None;
+        self.selecting = false;
+    }
+
+    fn clipboard(&mut self) -> Option<&mut arboard::Clipboard> {
+        if self.clipboard.is_none() {
+            self.clipboard = arboard::Clipboard::new().ok();
+        }
+        self.clipboard.as_mut()
+    }
+
+    /// Copia a seleção para a área de transferência. Devolve false se não havia seleção.
+    fn copy(&mut self) -> bool {
+        let Some(text) = self.selected_text.take() else {
+            return false;
+        };
+        if let Some(clipboard) = self.clipboard()
+            && let Err(e) = clipboard.set_text(text)
+        {
+            eprintln!("nemux: não foi possível copiar: {e}");
+        }
+        self.clear_selection();
+        true
+    }
+
+    /// Botão direito: copia se houver seleção, senão cola (como no Windows Terminal).
+    fn secondary_click(&mut self) {
+        if !self.copy() {
+            self.paste();
+        }
+    }
+
     fn new_tab(&mut self) {
+        self.new_tab_with(shell_command());
+    }
+
+    fn new_tab_with(&mut self, cmd: CommandBuilder) {
         let id = self.next_id;
         self.next_id += 1;
         let events = self.events.clone();
-        match Terminal::spawn(shell_command(), self.rows, self.cols, move |e| {
+        match Terminal::spawn(cmd, self.rows, self.cols, move |e| {
             let _ = events.send((id, e));
         }) {
             Ok(term) => {
@@ -81,10 +193,7 @@ impl App {
     }
 
     fn paste(&mut self) {
-        if self.clipboard.is_none() {
-            self.clipboard = arboard::Clipboard::new().ok();
-        }
-        let text = self.clipboard.as_mut().and_then(|c| c.get_text().ok());
+        let text = self.clipboard().and_then(|c| c.get_text().ok());
         if let (Some(text), Some(term)) = (text, self.active_term()) {
             term.scroll_to_bottom();
             term.paste(&text);
@@ -124,6 +233,26 @@ impl App {
         let (row, col) = snap.cursor.map_or((-1, 0), |(r, c)| (r as i32, c as i32));
         ui.set_cursor_row(row);
         ui.set_cursor_col(col);
+
+        // A seleção só vale na aba onde foi feita.
+        if self
+            .selection
+            .is_some_and(|(id, _)| Some(id) != self.active_id())
+        {
+            self.clear_selection();
+        }
+        let rects: Vec<SelRect> = self
+            .selection
+            .map(|(_, sel)| sel.rects(self.cols))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(row, col, width)| SelRect {
+                row: row as i32,
+                col: col as i32,
+                width: width as i32,
+            })
+            .collect();
+        ui.set_selection(ModelRc::new(VecModel::from(rects)));
     }
 }
 
@@ -168,6 +297,13 @@ fn to_line(runs: &[Run]) -> TermLine {
 fn handle_shortcut(app: &mut App, text: &str, mods: Mods) -> bool {
     let key = text.to_lowercase();
     match (mods.ctrl, mods.shift, mods.alt, key.as_str()) {
+        (true, true, false, "c") => {
+            app.copy();
+        }
+        // Ctrl+C só copia se houver seleção; sem ela, vai para o programa (interromper).
+        (true, false, false, "c") if app.selected_text.is_some() => {
+            app.copy();
+        }
         (true, true, false, "t") => app.new_tab(),
         (true, true, false, "w") => app.close_tab(app.active),
         (true, _, false, "v") => app.paste(),
@@ -224,6 +360,10 @@ pub fn init_controllers(ui: &AppWindow) -> Controllers {
         clipboard: None,
         lines_model,
         shown: Vec::new(),
+        selection: None,
+        selecting: false,
+        dragged: false,
+        selected_text: None,
     }));
 
     let weak = ui.as_weak();
@@ -275,6 +415,26 @@ pub fn init_controllers(ui: &AppWindow) -> Controllers {
             })
         }
     });
+    ui.on_select_start({
+        let on_change = on_change.clone();
+        move |row, col| on_change(&|app| app.start_selection(row, col))
+    });
+    ui.on_select_move({
+        let on_change = on_change.clone();
+        move |row, col| on_change(&|app| app.move_selection(row, col))
+    });
+    ui.on_select_end({
+        let on_change = on_change.clone();
+        move || on_change(&|app| app.end_selection())
+    });
+    ui.on_select_word({
+        let on_change = on_change.clone();
+        move |row, col| on_change(&|app| app.select_word(row, col))
+    });
+    ui.on_secondary_click({
+        let on_change = on_change.clone();
+        move || on_change(&|app| app.secondary_click())
+    });
     ui.on_key_input({
         let on_change = on_change.clone();
         move |text: SharedString, ctrl, alt, shift| {
@@ -292,6 +452,8 @@ pub fn init_controllers(ui: &AppWindow) -> Controllers {
                     term.scroll_to_bottom();
                     term.write(&bytes);
                     handled.set(true);
+                    // Digitar descarta a seleção, como no Windows Terminal.
+                    app.clear_selection();
                 }
             });
             handled.get()
