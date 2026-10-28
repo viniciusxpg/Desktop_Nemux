@@ -7,6 +7,7 @@
 mod memoria;
 mod paineis;
 mod selecao;
+mod sessoes;
 mod terminal;
 
 use std::fs::{self, File};

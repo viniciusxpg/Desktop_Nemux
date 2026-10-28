@@ -2,8 +2,9 @@ import { Palette } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { MemoryPanel, MemoryEntry } from "memory-panel.slint";
 import { TerminalPane, PaneView, TermLine, TermRun, SelRect } from "terminal-pane.slint";
+import { SessionPicker, SessionItem } from "session-picker.slint";
 
-export { MemoryEntry, PaneView, TermLine, TermRun, SelRect }
+export { MemoryEntry, PaneView, TermLine, TermRun, SelRect, SessionItem }
 
 export struct TabInfo {
     title: string,
@@ -121,6 +122,12 @@ export component AppWindow inherits Window {
     in-out property <string> memory-query;
     in property <string> memory-status;
 
+    // Lista de sessões do Claude para retomar.
+    in-out property <bool> sessions-open;
+    in property <[SessionItem]> sessions;
+    in-out property <string> sessions-query;
+    in property <string> sessions-status;
+
     // Tamanho de uma célula, medido com a própria fonte.
     out property <length> cell-width: measure.preferred-width / 10;
     out property <length> cell-height: measure.preferred-height;
@@ -151,6 +158,10 @@ export component AppWindow inherits Window {
     // Recarregar a lista da memória (painel aberto, busca ou filtro mudou).
     callback memory-refresh();
     callback memory-delete(int);
+    // Reler as sessões do disco (lista aberta), só filtrar (busca mudou) e retomar uma delas.
+    callback sessions-refresh();
+    callback sessions-filter();
+    callback session-open(int);
 
     // Os widgets (campo de busca, lista) seguem o tema escuro do terminal.
     init => {
@@ -164,6 +175,16 @@ export component AppWindow inherits Window {
 
     public function focus-terminal() {
         key-handler.focus();
+    }
+
+    public function toggle-sessions() {
+        root.sessions-open = !root.sessions-open;
+        if root.sessions-open {
+            root.sessions-query = "";
+            root.sessions-refresh();
+        } else {
+            key-handler.focus();
+        }
     }
 
     public function toggle-memory() {
@@ -230,6 +251,25 @@ export component AppWindow inherits Window {
                     horizontal-stretch: 1000;
                 }
 
+                sessions-btn := Rectangle {
+                    width: 80px;
+                    accessible-role: button;
+                    accessible-label: "Retomar sessão do Claude (Ctrl+Shift+R)";
+                    accessible-action-default => { root.toggle-sessions(); }
+                    background: sessions-touch.has-hover ? Theme.tab-hover : transparent;
+
+                    Text {
+                        text: "Sessões";
+                        color: sessions-touch.has-hover ? Theme.foreground : Theme.muted;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    sessions-touch := TouchArea {
+                        clicked => { root.toggle-sessions(); }
+                    }
+                }
+
                 split-right-btn := SplitButton {
                     side-by-side: true;
                     label: "Dividir ao lado (Alt+Shift+=)";
@@ -283,6 +323,10 @@ export component AppWindow inherits Window {
                             root.toggle-memory();
                             return accept;
                         }
+                        if event.modifiers.control && event.modifiers.shift && !event.modifiers.alt && (event.text == "r" || event.text == "R") {
+                            root.toggle-sessions();
+                            return accept;
+                        }
                         if root.key-input(event.text, event.modifiers.control, event.modifiers.alt, event.modifiers.shift) {
                             return accept;
                         }
@@ -323,5 +367,18 @@ export component AppWindow inherits Window {
                 close => { root.toggle-memory(); }
             }
         }
+    }
+
+    if root.sessions-open: session-picker := SessionPicker {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        sessions: root.sessions;
+        query <=> root.sessions-query;
+        status: root.sessions-status;
+        search-changed => { root.sessions-filter(); }
+        open(i) => { root.session-open(i); }
+        close => { root.toggle-sessions(); }
     }
 }

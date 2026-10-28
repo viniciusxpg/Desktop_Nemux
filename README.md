@@ -35,6 +35,9 @@ Aba 3: claude ─┘                     ▲
 - **Seleção e cópia de texto**: arraste para selecionar, dê duplo clique para
   pegar uma palavra ou um caminho de arquivo inteiro.
 - **Shift+Enter** quebra a linha no prompt do Claude Code sem enviar.
+- **Retomar sessões do Claude**: liste as conversas salvas do Claude Code (com
+  título, pasta e quando foram usadas) e continue qualquer uma numa aba nova,
+  inclusive as que foram abertas em outro terminal.
 - **Memória compartilhada via MCP**: um servidor MCP que o Claude Code usa para
   salvar, buscar e apagar memórias.
 - **Painel de memória**: veja, busque, filtre por projeto e apague o que o Claude
@@ -101,6 +104,16 @@ Para remover: `claude mcp remove nemux -s user`.
 | Botão direito | Copiar a seleção, ou colar se não houver seleção |
 | `Shift+PageUp` / `Shift+PageDown` | Rolar o histórico (também com a roda do mouse) |
 | `Ctrl+Shift+M` | Abrir / fechar o painel de memória |
+| `Ctrl+Shift+R` | Retomar uma sessão do Claude Code (também pelo botão "Sessões") |
+
+### Trazendo uma sessão do Claude de outro terminal
+
+Um programa já rodando em outra janela não pode ser movido para o Nemux (o
+Windows não deixa trocar o console de um processo). Mas a conversa do Claude Code
+fica salva em disco: abra **Sessões**, escolha a conversa e ela continua numa aba
+nova, na pasta certa, com `claude --resume`. Sessões marcadas como **em uso**
+foram gravadas nos últimos 2 minutos: feche a janela antiga para não haver duas
+cópias da mesma conversa.
 
 ## Configuração
 

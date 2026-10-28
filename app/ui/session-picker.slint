@@ -1,0 +1,202 @@
+import { LineEdit, ListView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+export struct SessionItem {
+    title: string,
+    folder: string,
+    when: string,
+    // Gravada há pouco: provavelmente aberta em outra janela.
+    active: bool,
+    // A pasta ainda existe (sem ela não dá para retomar).
+    available: bool,
+}
+
+component SessionRow inherits Rectangle {
+    in property <SessionItem> item;
+    callback clicked();
+
+    border-radius: 6px;
+    background: touch.has-hover && root.item.available ? Theme.tab-hover : transparent;
+    accessible-role: button;
+    accessible-label: "Retomar " + root.item.title;
+    accessible-enabled: root.item.available;
+    accessible-action-default => {
+        if root.item.available {
+            root.clicked();
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: root.item.available ? pointer : default;
+        clicked => {
+            if root.item.available {
+                root.clicked();
+            }
+        }
+    }
+
+    VerticalLayout {
+        padding: 10px;
+        spacing: 4px;
+
+        Text {
+            text: root.item.title;
+            color: root.item.available ? Theme.foreground : Theme.muted;
+            font-weight: 600;
+            overflow: elide;
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            Text {
+                text: root.item.available ? root.item.folder : root.item.folder + " (pasta não existe)";
+                color: Theme.muted;
+                font-size: 11px;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+
+            if root.item.active: Rectangle {
+                border-radius: 4px;
+                background: #c19c0033;
+
+                HorizontalLayout {
+                    padding-left: 6px;
+                    padding-right: 6px;
+
+                    Text {
+                        text: "em uso";
+                        color: #f9f1a5;
+                        font-size: 11px;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            Text {
+                text: root.item.when;
+                color: Theme.muted;
+                font-size: 11px;
+            }
+        }
+    }
+}
+
+// Lista das sessões do Claude Code salvas em disco, por cima da janela.
+export component SessionPicker inherits Rectangle {
+    in property <[SessionItem]> sessions;
+    in-out property <string> query;
+    in property <string> status;
+
+    callback search-changed();
+    // Índice na lista mostrada.
+    callback open(int);
+    callback close();
+
+    background: #000000aa;
+
+    init => {
+        search.focus();
+    }
+
+    // Clicar fora do cartão fecha.
+    TouchArea {
+        clicked => { root.close(); }
+    }
+
+    card := Rectangle {
+        width: min(680px, root.width - 32px);
+        height: min(520px, root.height - 32px);
+        border-radius: 10px;
+        background: Theme.tab-bar;
+        border-width: 1px;
+        border-color: Theme.divider;
+
+        // Engole os cliques dentro do cartão, para não fechar.
+        TouchArea { }
+
+        FocusScope {
+            focus-on-click: false;
+            key-pressed(event) => {
+                if event.text == Key.Escape {
+                    root.close();
+                    return accept;
+                }
+                reject
+            }
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 12px;
+
+                HorizontalLayout {
+                    Text {
+                        text: "Retomar sessão do Claude";
+                        color: Theme.foreground;
+                        font-size: 16px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+
+                    close-btn := Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 4px;
+                        background: close-touch.has-hover ? Theme.tab-hover : transparent;
+                        accessible-role: button;
+                        accessible-label: "Fechar lista de sessões";
+                        accessible-action-default => { root.close(); }
+
+                        Text {
+                            text: "×";
+                            color: Theme.muted;
+                            font-size: 18px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        close-touch := TouchArea {
+                            clicked => { root.close(); }
+                        }
+                    }
+                }
+
+                search := LineEdit {
+                    placeholder-text: "Filtrar por título ou pasta…";
+                    text <=> root.query;
+                    edited => { root.search-changed(); }
+                    // Enter abre a primeira da lista.
+                    accepted => {
+                        if root.sessions.length > 0 && root.sessions[0].available {
+                            root.open(0);
+                        }
+                    }
+                }
+
+                ListView {
+                    vertical-stretch: 1;
+
+                    for item[i] in root.sessions: SessionRow {
+                        item: item;
+                        clicked => { root.open(i); }
+                    }
+                }
+
+                if root.sessions.length == 0: Text {
+                    text: root.query == "" ? "Nenhuma sessão do Claude Code encontrada." : "Nenhuma sessão com esse filtro.";
+                    color: Theme.muted;
+                    horizontal-alignment: center;
+                }
+
+                status-text := Text {
+                    text: root.status;
+                    color: Theme.muted;
+                    font-size: 11px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+}

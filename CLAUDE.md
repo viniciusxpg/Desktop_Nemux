@@ -20,6 +20,13 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
   - `src/keys.rs`: teclas do Slint → sequências de terminal.
   - `src/selection.rs`: seleção de texto com o mouse.
   - `src/memory_view.rs`: painel de memória (lê o mesmo banco do servidor MCP).
+  - `src/sessions.rs`: lê as sessões do Claude Code em
+    `~/.claude/projects/<pasta>/<id>.jsonl` (ou `CLAUDE_CONFIG_DIR`). Usa só o
+    começo do arquivo (`cwd`, primeira mensagem) e o fim (`ai-title`,
+    `last-prompt`); os arquivos chegam a vários MB. Esse formato é interno do
+    Claude Code e pode mudar: se a lista vier vazia ou sem título, comece por aqui.
+  - `src/session_view.rs`: lista "Retomar sessão" (`ui/session-picker.slint`);
+    retomar abre `powershell -NoExit -Command "claude --resume <id>"` na pasta da sessão.
   - `src/main.rs`: `init_controllers`, que liga os callbacks da interface ao `App`.
   - `ui/app-window.slint` (janela, abas, área dos painéis), `ui/terminal-pane.slint`
     (um painel: grade, seleção, cursor, mouse), `ui/memory-panel.slint`,

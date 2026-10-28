@@ -6,6 +6,8 @@ mod keys;
 mod layout;
 mod memory_view;
 mod selection;
+mod session_view;
+mod sessions;
 mod terminal;
 #[cfg(test)]
 mod ui_tests;
@@ -22,12 +24,16 @@ use app::{App, Metrics};
 use keys::Mods;
 use layout::{PaneId, Split};
 use memory_view::MemoryView;
+use session_view::SessionsView;
 
 slint::include_modules!();
 
 /// Estado do app e os timers que repassam eventos; precisam viver enquanto a janela existir.
 pub struct Controllers {
     app: Rc<RefCell<App>>,
+    // Lido pelos testes de UI, que trocam a pasta e o comando das sessões.
+    #[cfg_attr(not(test), allow(dead_code))]
+    sessions: Rc<RefCell<SessionsView>>,
     _timer: slint::Timer,
     _memory_timer: slint::Timer,
 }
@@ -210,8 +216,42 @@ pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
         }
     });
 
+    let sessions = Rc::new(RefCell::new(SessionsView::new(sessions::projects_dir())));
+    ui.on_sessions_refresh({
+        let (sessions, weak) = (sessions.clone(), ui.as_weak());
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                sessions.borrow_mut().refresh(&ui);
+            }
+        }
+    });
+    ui.on_sessions_filter({
+        let (sessions, weak) = (sessions.clone(), ui.as_weak());
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                sessions.borrow_mut().filter(&ui);
+            }
+        }
+    });
+    ui.on_session_open({
+        let (sessions, weak, on_change) = (sessions.clone(), ui.as_weak(), on_change.clone());
+        move |index| {
+            let Some(ui) = weak.upgrade() else { return };
+            let Some(cmd) = sessions.borrow().command(index.max(0) as usize) else {
+                ui.set_sessions_status(
+                    "Não dá para retomar esta sessão: a pasta dela não existe mais.".into(),
+                );
+                return;
+            };
+            on_change(&|app| app.new_tab_with(cmd.clone()));
+            ui.set_sessions_open(false);
+            ui.invoke_focus_terminal();
+        }
+    });
+
     Controllers {
         app,
+        sessions,
         _timer: timer,
         _memory_timer: memory_timer,
     }
