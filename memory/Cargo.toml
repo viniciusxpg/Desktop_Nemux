@@ -1,0 +1,12 @@
+[package]
+name = "nemux-memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+dirs = "7.0.0"
+rusqlite = { version = "0.41.0", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"

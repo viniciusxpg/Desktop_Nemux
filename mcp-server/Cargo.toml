@@ -1,0 +1,13 @@
+[package]
+name = "nemux-mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+nemux-memory = { version = "0.1.0", path = "../memory" }
+rmcp = { version = "3.8.0", features = ["server", "transport-io", "macros"] }
+schemars = "1.2.3"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "io-std"] }

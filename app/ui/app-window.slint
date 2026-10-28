@@ -1,0 +1,21 @@
+import { TabWidget } from "std-widgets.slint";
+
+export component AppWindow inherits Window {
+    title: "Nemux";
+    preferred-width: 1000px;
+    preferred-height: 650px;
+
+    TabWidget {
+        Tab {
+            title: "Terminal 1";
+            Rectangle {
+                background: #1e1e1e;
+                Text {
+                    text: "Terminal ainda não implementado";
+                    color: #cccccc;
+                    font-family: "Consolas";
+                }
+            }
+        }
+    }
+}
