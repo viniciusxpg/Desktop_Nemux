@@ -1,5 +1,5 @@
 # Atalhos de teste (ver "Testes" no CLAUDE.md)
 [alias]
-test-model = "test --workspace --exclude nemux-app -- --skip ui_tests"   # lógica: memória e servidor MCP
-test-ui = "test -p nemux-app ui_tests"                                   # só a interface (app/src/ui_tests)
-capturas = "test -p nemux-app ui_tests -- --ignored --nocapture"         # só gera os PNGs em target/ui-capturas
+test-model = "test --workspace -- --skip ui_tests"               # só a lógica (tudo menos app/src/ui_tests)
+test-ui = "test -p nemux-app ui_tests"                           # só a interface (app/src/ui_tests)
+capturas = "test -p nemux-app ui_tests -- --ignored --nocapture" # só gera os PNGs em target/ui-capturas
