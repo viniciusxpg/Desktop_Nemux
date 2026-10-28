@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["app", "memory", "mcp-server"]
+# `cargo run` (e build/test sem -p ou --workspace) usa o app.
+default-members = ["app"]
 
 [workspace.package]
 version = "0.1.0"
