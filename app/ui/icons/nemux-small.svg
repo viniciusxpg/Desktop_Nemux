@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Versão para 16 e 24 px: sem borda, desenho maior e traços mais grossos. -->
+  <rect width="256" height="256" rx="56" fill="#1e1e1e"/>
+  <g transform="translate(32 32) scale(1.92)">
+    <rect x="12" y="16" width="22" height="68" rx="4" fill="#e6e6e6"/>
+    <rect x="66" y="16" width="22" height="68" rx="4" fill="#e6e6e6"/>
+    <polygon points="34,16 50,16 66,84 50,84" fill="#3b78ff"/>
+  </g>
+</svg>

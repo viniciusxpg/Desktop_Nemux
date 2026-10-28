@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Ícone do Nemux (conceito "N de painéis"): dois painéis de terminal ligados por uma diagonal. -->
+  <rect x="4" y="4" width="248" height="248" rx="56" fill="#1e1e1e" stroke="#3a3a3a" stroke-width="4"/>
+  <g transform="translate(44 44) scale(1.68)">
+    <rect x="14" y="18" width="20" height="64" rx="5" fill="#e6e6e6"/>
+    <rect x="66" y="18" width="20" height="64" rx="5" fill="#e6e6e6"/>
+    <polygon points="34,18 49,18 66,82 51,82" fill="#3b78ff"/>
+  </g>
+</svg>

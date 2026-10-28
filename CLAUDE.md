@@ -18,6 +18,9 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
   - `src/main.rs`: estado do app (`App`), `init_controllers` e os callbacks.
   - `ui/app-window.slint` (janela, abas, grade), `ui/memory-panel.slint`,
     `ui/theme.slint` (cores e fonte).
+  - `ui/icons/nemux.svg` (e `nemux-small.svg`, para 16 e 24 px): o ícone. É a
+    única fonte: a janela usa o SVG direto, e o `build.rs` gera o `.ico` e o
+    embute no `.exe` (precisa do `rc.exe` do Windows SDK; sem ele o build só avisa).
 
 ## Comandos
 
