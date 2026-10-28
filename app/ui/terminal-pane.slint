@@ -67,6 +67,9 @@ export component TerminalPane inherits Rectangle {
     callback scroll-lines(int);
     // Posição absoluta no histórico: linhas acima do fim (barra de rolagem).
     callback scroll-to(int);
+    // Roda do mouse: linhas (positivo sobe) e a célula sob o ponteiro, que vai para
+    // o programa quando ele ligou o mouse.
+    callback wheel(int, int, int);
 
     x: root.pane.x;
     y: root.pane.y;
@@ -101,7 +104,7 @@ export component TerminalPane inherits Rectangle {
             root.select-word(root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
         }
         scroll-event(event) => {
-            root.scroll-lines(event.delta-y > 0 ? 3 : -3);
+            root.wheel(event.delta-y > 0 ? 3 : -3, root.cell-row(self.mouse-y), root.cell-col(self.mouse-x));
             accept
         }
     }

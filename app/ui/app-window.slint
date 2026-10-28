@@ -151,6 +151,8 @@ export component AppWindow inherits Window {
     callback scroll-lines(int, int);
     // Posição no histórico vinda da barra de rolagem: linhas acima do fim.
     callback scroll-to(int, int);
+    // Roda do mouse: linhas (positivo sobe), linha e coluna sob o ponteiro.
+    callback wheel(int, int, int, int);
     // Seleção com o mouse, em (linha, coluna) da grade; podem vir fora dos limites.
     callback select-start(int, int, int);
     callback select-move(int, int);
@@ -358,6 +360,7 @@ export component AppWindow inherits Window {
                     }
                     scroll-lines(lines) => { root.scroll-lines(pane.id, lines); }
                     scroll-to(offset) => { root.scroll-to(pane.id, offset); }
+                    wheel(lines, row, col) => { root.wheel(pane.id, lines, row, col); }
                 }
             }
 

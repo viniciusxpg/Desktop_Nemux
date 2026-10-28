@@ -167,3 +167,8 @@ memória usam sempre um banco temporário.
 ## Licença
 
 MIT.
+
+O Nemux inclui em `vendor/conpty/` o `conpty.dll` e o `OpenConsole.exe` da
+Microsoft (projeto [microsoft/terminal](https://github.com/microsoft/terminal),
+licença MIT), a mesma versão do ConPTY usada pelo Windows Terminal. Com ela, a
+roda do mouse funciona dentro do Claude Code e de outros programas de tela cheia.

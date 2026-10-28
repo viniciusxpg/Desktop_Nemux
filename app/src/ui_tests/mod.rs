@@ -5,6 +5,7 @@
 // As capturas vão para <workspace>/target/ui-capturas/<nome>.png.
 
 mod memoria;
+mod mouse;
 mod paineis;
 mod rolagem;
 mod selecao;

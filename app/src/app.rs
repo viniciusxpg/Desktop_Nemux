@@ -312,6 +312,29 @@ impl App {
         }
     }
 
+    /// Roda do mouse sobre a célula (`row`, `col`) do painel; `lines` positivo é para cima.
+    /// Como no Windows Terminal: se o programa ligou o mouse (Claude Code), a roda vai
+    /// para ele; na tela alternativa sem mouse (`less`), vira setas; senão rola o histórico.
+    pub fn wheel(&mut self, pane: PaneId, lines: i32, row: i32, col: i32) {
+        let Some((row, col)) = self.clamp_cell(pane, row, col) else {
+            return;
+        };
+        let Some(p) = self.panes.get(&pane) else {
+            return;
+        };
+        let up = lines > 0;
+        if let Some(encoding) = p.term.mouse_reporting() {
+            p.term.write(&keys::encode_wheel(up, row, col, encoding));
+        } else if p.term.alternate_screen() {
+            let arrow = if up { "\u{F700}" } else { "\u{F701}" };
+            if let Some(bytes) = keys::encode(arrow, Mods::default(), p.term.application_cursor()) {
+                p.term.write(&bytes.repeat(lines.unsigned_abs() as usize));
+            }
+        } else {
+            p.term.scroll(lines as isize);
+        }
+    }
+
     /// Posiciona o histórico do painel `offset` linhas acima do fim (barra de rolagem).
     pub fn scroll_to(&mut self, pane: PaneId, offset: usize) {
         if let Some(p) = self.panes.get(&pane) {

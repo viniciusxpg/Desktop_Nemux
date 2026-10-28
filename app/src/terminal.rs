@@ -177,6 +177,19 @@ impl Terminal {
             .set_scrollback(offset);
     }
 
+    /// Formato em que o programa quer receber o mouse, se ele ligou o mouse.
+    pub fn mouse_reporting(&self) -> Option<vt100::MouseProtocolEncoding> {
+        let parser = self.parser.lock().unwrap();
+        let screen = parser.screen();
+        (screen.mouse_protocol_mode() != vt100::MouseProtocolMode::None)
+            .then(|| screen.mouse_protocol_encoding())
+    }
+
+    /// O programa está na tela alternativa (a de `vim`, `less`, Claude Code), que não tem histórico.
+    pub fn alternate_screen(&self) -> bool {
+        self.parser.lock().unwrap().screen().alternate_screen()
+    }
+
     pub fn application_cursor(&self) -> bool {
         self.parser.lock().unwrap().screen().application_cursor()
     }

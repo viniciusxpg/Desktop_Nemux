@@ -109,9 +109,62 @@ fn tilde(code: u8, mods: Mods) -> Vec<u8> {
     }
 }
 
+/// Um passo da roda do mouse na célula (`row`, `col`), para um programa que ligou o
+/// mouse (`CSI ?1000h` e afins), no formato que ele pediu.
+pub fn encode_wheel(
+    up: bool,
+    row: u16,
+    col: u16,
+    encoding: vt100::MouseProtocolEncoding,
+) -> Vec<u8> {
+    let button: u32 = if up { 64 } else { 65 };
+    let (x, y) = (col as u32 + 1, row as u32 + 1);
+    match encoding {
+        vt100::MouseProtocolEncoding::Sgr => format!("\x1b[<{button};{x};{y}M").into_bytes(),
+        // X10: cada valor + 32 num byte; coordenadas acima de 223 não cabem.
+        vt100::MouseProtocolEncoding::Default => {
+            let byte = |v: u32| (32 + v).min(255) as u8;
+            vec![0x1b, b'[', b'M', byte(button), byte(x), byte(y)]
+        }
+        // Igual ao X10, mas cada valor vira um caractere UTF-8 (cabem coordenadas maiores).
+        vt100::MouseProtocolEncoding::Utf8 => {
+            let mut out = b"\x1b[M".to_vec();
+            for v in [button, x, y] {
+                let c = char::from_u32(32 + v).unwrap_or(' ');
+                out.extend(c.to_string().as_bytes());
+            }
+            out
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wheel_encodings() {
+        use vt100::MouseProtocolEncoding::{Default, Sgr, Utf8};
+        assert_eq!(encode_wheel(true, 0, 0, Sgr), b"\x1b[<64;1;1M");
+        assert_eq!(encode_wheel(false, 9, 19, Sgr), b"\x1b[<65;20;10M");
+        assert_eq!(
+            encode_wheel(true, 2, 4, Default),
+            [0x1b, b'[', b'M', 96, 37, 35]
+        );
+        // Coluna 300 não cabe num byte (X10), mas cabe em UTF-8.
+        assert_eq!(encode_wheel(true, 0, 299, Default)[4], 255);
+        assert_eq!(
+            encode_wheel(true, 0, 299, Utf8),
+            [
+                "\x1b[M",
+                "`",
+                &char::from_u32(332).unwrap().to_string(),
+                "!"
+            ]
+            .concat()
+            .as_bytes()
+        );
+    }
 
     const NONE: Mods = Mods {
         ctrl: false,

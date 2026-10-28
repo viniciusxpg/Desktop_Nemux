@@ -77,8 +77,18 @@ janela (backend de testes do Slint + renderizador por software):
 - O servidor está registrado no Claude Code (escopo de usuário) apontando para
   `target\release\nemux-mcp.exe`. O Windows trava o `.exe` enquanto alguma sessão
   do Claude o usa: feche-as antes de recompilar em release.
+- **ConPTY novo em `vendor/conpty`** (`conpty.dll` + `OpenConsole.exe` da Microsoft,
+  MIT; ver o README de lá). O `build.rs` os copia para `target/<perfil>` e `deps`,
+  e o `portable-pty` os prefere ao ConPTY do Windows. O do Windows 10 redesenha a
+  tela em vez de repassar a saída: ele esconde que o Claude Code usa tela
+  alternativa e mouse (`?1049h`, `?1000h`, `?1006h`), então a roda não chegava
+  ao Claude. Ao investigar algo do ConPTY, lembre que o `cargo test` põe
+  `target/debug` no PATH: para testar sem o ConPTY novo, tire as duas cópias.
+- A roda do mouse (`App::wheel`) vai para o programa se ele ligou o mouse; na
+  tela alternativa sem mouse vira setas; senão rola o histórico do Nemux.
 - O ConPTY pergunta a posição do cursor (`ESC[6n`) ao iniciar e espera a
-  resposta; `terminal::Callbacks` responde a isso (e a DSR 5 e DA1).
+  resposta; `terminal::Callbacks` responde a isso (e a DSR 5 e DA1). Respostas
+  ao ConPTY precisam ir num único `write`: em pedaços, ele não as reconhece.
 - No `FocusScope` do terminal, `focus-on-click: false` é necessário: com o padrão
   (`true`) ele engole os cliques e a seleção com o mouse para de funcionar.
 - O banco usa WAL e `busy_timeout`, porque várias sessões do Claude e o app

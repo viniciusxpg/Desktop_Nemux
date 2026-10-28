@@ -139,6 +139,10 @@ pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
         let on_change = on_change.clone();
         move |pane, lines| on_change(&|app| app.scroll(pane_id(pane), lines as isize))
     });
+    ui.on_wheel({
+        let on_change = on_change.clone();
+        move |pane, lines, row, col| on_change(&|app| app.wheel(pane_id(pane), lines, row, col))
+    });
     ui.on_scroll_to({
         let on_change = on_change.clone();
         move |pane, offset| on_change(&|app| app.scroll_to(pane_id(pane), offset.max(0) as usize))

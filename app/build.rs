@@ -10,6 +10,38 @@ fn main() {
 
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         windows_icon();
+        copy_conpty();
+    }
+}
+
+/// Copia o ConPTY novo da Microsoft (`vendor/conpty`) para junto do executável e dos
+/// binários de teste (`deps`): o `portable-pty` o prefere ao ConPTY do Windows.
+fn copy_conpty() {
+    let source = Path::new("../vendor/conpty");
+    println!("cargo:rerun-if-changed=../vendor/conpty");
+    // OUT_DIR = target/<perfil>/build/nemux-app-<hash>/out
+    let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
+    let Some(profile_dir) = out.ancestors().nth(3) else {
+        return;
+    };
+    for dir in [profile_dir.to_path_buf(), profile_dir.join("deps")] {
+        for file in ["conpty.dll", "OpenConsole.exe"] {
+            let (from, to) = (source.join(file), dir.join(file));
+            let same = match (std::fs::metadata(&from), std::fs::metadata(&to)) {
+                (Ok(a), Ok(b)) => a.len() == b.len() && a.modified().ok() <= b.modified().ok(),
+                _ => false,
+            };
+            if same || !from.exists() {
+                continue;
+            }
+            // Com o app aberto o arquivo fica travado; a cópia antiga continua valendo.
+            if let Err(e) = std::fs::create_dir_all(&dir).and_then(|_| std::fs::copy(&from, &to)) {
+                println!(
+                    "cargo:warning=não foi possível copiar {}: {e}",
+                    to.display()
+                );
+            }
+        }
     }
 }
 
