@@ -5,8 +5,17 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow = "1.0.104"
+arboard = "3.7.0"
 nemux-memory = { version = "0.1.0", path = "../memory" }
+portable-pty = "0.9.0"
 slint = "1.18.1"
+vt100 = "0.18.1"
 
 [build-dependencies]
 slint-build = "1.18.1"
+
+[dev-dependencies]
+# precisa ser exatamente a versão do slint (crate interno, sem semver)
+i-slint-backend-testing = { version = "=1.18.1", features = ["renderer-software"] }
+png = "0.18"

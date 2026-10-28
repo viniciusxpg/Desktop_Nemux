@@ -1,19 +1,252 @@
-import { TabWidget } from "std-widgets.slint";
+export struct TermRun {
+    col: int,
+    width: int,
+    text: string,
+    fg: color,
+    bg: color,
+    has-bg: bool,
+    bold: bool,
+    italic: bool,
+    underline: bool,
+}
+
+export struct TermLine {
+    runs: [TermRun],
+}
+
+export struct TabInfo {
+    title: string,
+}
+
+global Theme {
+    out property <color> background: #1e1e1e;
+    out property <color> foreground: #cccccc;
+    out property <color> tab-bar: #2b2b2b;
+    out property <color> tab-active: #1e1e1e;
+    out property <color> tab-hover: #383838;
+    out property <color> muted: #8a8a8a;
+    out property <color> accent: #3b78ff;
+    out property <string> font-family: "Consolas";
+    out property <length> font-size: 14px;
+}
+
+component TabButton inherits Rectangle {
+    in property <string> title;
+    in property <bool> active;
+    callback clicked();
+    callback close();
+
+    height: 32px;
+    min-width: 120px;
+    max-width: 220px;
+    horizontal-stretch: 1;
+    accessible-role: tab;
+    accessible-label: root.title;
+    accessible-action-default => { root.clicked(); }
+    background: active ? Theme.tab-active : (touch.has-hover ? Theme.tab-hover : Theme.tab-bar);
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    if active: Rectangle {
+        y: 0;
+        height: 2px;
+        background: Theme.accent;
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 4px;
+        spacing: 4px;
+
+        Text {
+            text: root.title;
+            color: root.active ? Theme.foreground : Theme.muted;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+
+        close-btn := Rectangle {
+            width: 24px;
+            border-radius: 4px;
+            accessible-role: button;
+            accessible-label: "Fechar aba " + root.title;
+            accessible-action-default => { root.close(); }
+            background: close-touch.has-hover ? Theme.tab-hover.brighter(30%) : transparent;
+
+            Text {
+                text: "×";
+                color: Theme.muted;
+                font-size: 16px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            close-touch := TouchArea {
+                clicked => { root.close(); }
+            }
+        }
+    }
+}
 
 export component AppWindow inherits Window {
     title: "Nemux";
     preferred-width: 1000px;
     preferred-height: 650px;
+    background: Theme.background;
 
-    TabWidget {
-        Tab {
-            title: "Terminal 1";
-            Rectangle {
-                background: #1e1e1e;
-                Text {
-                    text: "Terminal ainda não implementado";
-                    color: #cccccc;
-                    font-family: "Consolas";
+    in property <[TabInfo]> tabs;
+    in property <int> active-tab;
+    in property <[TermLine]> lines;
+    // Linha/coluna do cursor; -1 = escondido.
+    in property <int> cursor-row: -1;
+    in property <int> cursor-col;
+
+    // Tamanho de uma célula, medido com a própria fonte.
+    out property <length> cell-width: measure.preferred-width / 10;
+    out property <length> cell-height: measure.preferred-height;
+    // Quantas colunas/linhas cabem na área do terminal.
+    out property <int> grid-cols: max(1, floor((term-area.width - 2 * term-area.pad) / max(1px, root.cell-width)));
+    out property <int> grid-rows: max(1, floor((term-area.height - 2 * term-area.pad) / max(1px, root.cell-height)));
+
+    callback new-tab();
+    callback select-tab(int);
+    callback close-tab(int);
+    // Devolve true se a tecla foi tratada.
+    callback key-input(string, bool, bool, bool) -> bool;
+    callback grid-resized(int, int);
+    // Linhas a rolar: positivo sobe no histórico.
+    callback scroll-lines(int);
+
+    changed grid-cols => { root.grid-resized(root.grid-cols, root.grid-rows); }
+    changed grid-rows => { root.grid-resized(root.grid-cols, root.grid-rows); }
+
+    public function focus-terminal() {
+        key-handler.focus();
+    }
+
+    measure := Text {
+        visible: false;
+        text: "MMMMMMMMMM";
+        font-family: Theme.font-family;
+        font-size: Theme.font-size;
+    }
+
+    VerticalLayout {
+        tab-bar := Rectangle {
+            height: 32px;
+            background: Theme.tab-bar;
+
+            HorizontalLayout {
+                alignment: start;
+
+                for tab[i] in root.tabs: TabButton {
+                    title: tab.title;
+                    active: i == root.active-tab;
+                    clicked => {
+                        root.select-tab(i);
+                        key-handler.focus();
+                    }
+                    close => { root.close-tab(i); }
+                }
+
+                new-tab-btn := Rectangle {
+                    width: 36px;
+                    accessible-role: button;
+                    accessible-label: "Nova aba";
+                    accessible-action-default => {
+                        root.new-tab();
+                        key-handler.focus();
+                    }
+                    background: new-touch.has-hover ? Theme.tab-hover : transparent;
+
+                    Text {
+                        text: "+";
+                        color: Theme.foreground;
+                        font-size: 18px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    new-touch := TouchArea {
+                        clicked => {
+                            root.new-tab();
+                            key-handler.focus();
+                        }
+                    }
+                }
+            }
+        }
+
+        term-area := Rectangle {
+            property <length> pad: 6px;
+            background: Theme.background;
+            clip: true;
+
+            TouchArea {
+                mouse-cursor: text;
+                clicked => { key-handler.focus(); }
+                scroll-event(event) => {
+                    root.scroll-lines(event.delta-y > 0 ? 3 : -3);
+                    accept
+                }
+            }
+
+            key-handler := FocusScope {
+                key-pressed(event) => {
+                    if root.key-input(event.text, event.modifiers.control, event.modifiers.alt, event.modifiers.shift) {
+                        return accept;
+                    }
+                    reject
+                }
+            }
+
+            grid := Rectangle {
+                x: term-area.pad;
+                y: term-area.pad;
+                width: root.grid-cols * root.cell-width;
+                height: root.grid-rows * root.cell-height;
+
+                for line[r] in root.lines: Rectangle {
+                    y: r * root.cell-height;
+                    height: root.cell-height;
+
+                    for run in line.runs: Rectangle {
+                        x: run.col * root.cell-width;
+                        width: run.width * root.cell-width;
+                        background: run.has-bg ? run.bg : transparent;
+
+                        Text {
+                            x: 0;
+                            width: parent.width;
+                            height: parent.height;
+                            text: run.text;
+                            color: run.fg;
+                            font-family: Theme.font-family;
+                            font-size: Theme.font-size;
+                            font-weight: run.bold ? 700 : 400;
+                            font-italic: run.italic;
+                            vertical-alignment: center;
+                        }
+
+                        if run.underline: Rectangle {
+                            y: parent.height - 2px;
+                            height: 1px;
+                            background: run.fg;
+                        }
+                    }
+                }
+
+                if root.cursor-row >= 0: Rectangle {
+                    x: root.cursor-col * root.cell-width;
+                    y: root.cursor-row * root.cell-height;
+                    width: root.cell-width;
+                    height: root.cell-height;
+                    background: key-handler.has-focus ? Theme.foreground.with-alpha(0.5) : transparent;
+                    border-width: key-handler.has-focus ? 0 : 1px;
+                    border-color: Theme.foreground;
                 }
             }
         }
