@@ -3,9 +3,12 @@ use std::num::NonZeroU16;
 use std::rc::Rc;
 
 use i_slint_backend_testing::ElementHandle;
-use slint::{ComponentHandle, Model, ModelRc, VecModel};
+use slint::platform::{PointerEventButton, WindowEvent};
+use slint::{ComponentHandle, LogicalPosition, Model, ModelRc, VecModel};
 
-use super::{ALTURA, LARGURA, abrir, abrir_com_cmd, capturar, elemento, esperar, medir, painel};
+use super::{
+    ALTURA, LARGURA, abrir, abrir_com_cmd, capturar, elemento, enviar, esperar, medir, painel,
+};
 use crate::layout::{Rect, grid_size};
 use crate::terminal::{Callbacks, Parser, snapshot};
 use crate::{AppWindow, PaneView, TabInfo};
@@ -159,6 +162,39 @@ fn clicar_na_aba_seleciona() {
 
     aba(&app, "claude").invoke_accessible_default_action();
     assert_eq!(escolhida.get(), 1);
+}
+
+/// Um terminal que redesenha entre o apertar e o soltar do botão não pode engolir o clique.
+#[test]
+fn clicar_na_aba_com_o_terminal_redesenhando() {
+    let (app, c) = abrir_com_cmd("um");
+    app.invoke_new_tab();
+    esperar(&c, "a segunda aba", |e| e.tabs.len() == 2);
+    assert_eq!(app.get_active_tab(), 1);
+
+    let primeira = ElementHandle::find_by_element_id(&app, "TabButton::touch")
+        .next()
+        .expect("botão da primeira aba");
+    let (p, s) = (primeira.absolute_position(), primeira.size());
+    let ponto = LogicalPosition::new(p.x + s.width / 2.0, p.y + s.height / 2.0);
+    let button = PointerEventButton::Left;
+    enviar(&app, WindowEvent::PointerMoved { position: ponto });
+    enviar(
+        &app,
+        WindowEvent::PointerPressed {
+            position: ponto,
+            button,
+        },
+    );
+    c.app.borrow_mut().render(&app);
+    enviar(
+        &app,
+        WindowEvent::PointerReleased {
+            position: ponto,
+            button,
+        },
+    );
+    assert_eq!(app.get_active_tab(), 0);
 }
 
 #[test]

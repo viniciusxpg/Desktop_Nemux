@@ -84,12 +84,15 @@ pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
 
     let panes_model = Rc::new(VecModel::default());
     ui.set_panes(ModelRc::from(panes_model.clone()));
+    let tabs_model = Rc::new(VecModel::default());
+    ui.set_tabs(ModelRc::from(tabs_model.clone()));
     let dividers_model = Rc::new(VecModel::default());
     ui.set_dividers(ModelRc::from(dividers_model.clone()));
     let app = Rc::new(RefCell::new(App::new(
         tx,
         metrics(ui),
         panes_model,
+        tabs_model,
         dividers_model,
     )));
 

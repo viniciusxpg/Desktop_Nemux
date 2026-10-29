@@ -59,6 +59,8 @@ pub struct App {
     pub shell: Box<dyn Fn() -> CommandBuilder>,
     clipboard: Option<arboard::Clipboard>,
     panes_model: Rc<VecModel<PaneView>>,
+    /// Fixo entre quadros: recriar a lista entre o apertar e o soltar do botão perderia o clique.
+    tabs_model: Rc<VecModel<TabInfo>>,
     /// Fixo durante o arraste: recriar a lista destruiria a divisória sendo arrastada.
     dividers_model: Rc<VecModel<DividerView>>,
     /// Seleção e o painel onde ela foi feita.
@@ -76,6 +78,7 @@ impl App {
         events: mpsc::Sender<(PaneId, Event)>,
         metrics: Metrics,
         panes_model: Rc<VecModel<PaneView>>,
+        tabs_model: Rc<VecModel<TabInfo>>,
         dividers_model: Rc<VecModel<DividerView>>,
     ) -> Self {
         Self {
@@ -88,6 +91,7 @@ impl App {
             shell: Box::new(shell_command),
             clipboard: None,
             panes_model,
+            tabs_model,
             dividers_model,
             selection: None,
             selecting: false,
@@ -610,7 +614,7 @@ impl App {
                     .into(),
             })
             .collect();
-        ui.set_tabs(ModelRc::new(VecModel::from(tabs)));
+        update_model(&self.tabs_model, tabs);
         ui.set_active_tab(self.active as i32);
 
         // A seleção só vale enquanto o painel dela está visível.
@@ -643,15 +647,7 @@ impl App {
                 vertical: d.split == Split::Right,
             })
             .collect();
-        if self.dividers_model.row_count() == dividers.len() {
-            for (row, d) in dividers.into_iter().enumerate() {
-                if self.dividers_model.row_data(row).as_ref() != Some(&d) {
-                    self.dividers_model.set_row_data(row, d);
-                }
-            }
-        } else {
-            self.dividers_model.set_vec(dividers);
-        }
+        update_model(&self.dividers_model, dividers);
 
         let model = &self.panes_model;
         let same_panes = model.row_count() == views.len()
@@ -709,6 +705,20 @@ impl App {
             history: snap.history as i32,
             offset: snap.offset as i32,
         })
+    }
+}
+
+/// Troca o conteúdo de `model` por `rows` mexendo só nas linhas que mudaram, para a
+/// interface não recriar os elementos (e perder um clique ou arraste em andamento).
+fn update_model<T: Clone + PartialEq + 'static>(model: &VecModel<T>, rows: Vec<T>) {
+    if model.row_count() == rows.len() {
+        for (row, data) in rows.into_iter().enumerate() {
+            if model.row_data(row).as_ref() != Some(&data) {
+                model.set_row_data(row, data);
+            }
+        }
+    } else {
+        model.set_vec(rows);
     }
 }
 
