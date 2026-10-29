@@ -23,6 +23,12 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     transforma a tela em trechos (`Run`) com o mesmo estilo.
   - `src/keys.rs`: teclas do Slint → sequências de terminal.
   - `src/selection.rs`: seleção de texto com o mouse.
+  - `src/search.rs`: busca no histórico (`Ctrl+Shift+F`, `ui/search-bar.slint`).
+    O `vt100` só expõe as linhas à vista, então `find_all` percorre o histórico
+    mudando a posição de rolagem e a devolve no fim. As ocorrências são contadas a
+    partir do topo do histórico (estável com saída nova, até o histórico encher).
+    `App::search` guarda o texto e a ocorrência escolhida; o `render()` só destaca
+    as que estão à vista no painel ativo (`PaneView.matches`/`current-match`).
   - `src/memory_view.rs`: painel de memória (lê o mesmo banco do servidor MCP).
   - `src/sessions.rs`: lê as sessões do Claude Code em
     `~/.claude/projects/<pasta>/<id>.jsonl` (ou `CLAUDE_CONFIG_DIR`). Usa só o

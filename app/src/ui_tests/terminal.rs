@@ -11,7 +11,7 @@ use super::{
 };
 use crate::layout::{Rect, grid_size};
 use crate::terminal::{Callbacks, Colors, Parser, snapshot};
-use crate::{AppWindow, PaneView, TabInfo};
+use crate::{AppWindow, PaneView, SelRect, TabInfo};
 
 /// Passa `ansi` por um parser vt100 do tamanho de um painel que ocupa a área toda
 /// e o mostra na janela, do mesmo jeito que `App::render` faz.
@@ -45,6 +45,12 @@ fn mostrar(app: &AppWindow, ansi: &str) {
         cursor_row,
         cursor_col,
         selection: ModelRc::default(),
+        matches: ModelRc::default(),
+        current_match: SelRect {
+            row: -1,
+            col: 0,
+            width: 0,
+        },
         active: true,
         attention: false,
         rows: rows as i32,

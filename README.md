@@ -36,6 +36,10 @@ Aba 3: claude ─┘                     ▲
   nela volta a dividir ao meio.
 - **Seleção e cópia de texto**: arraste para selecionar, dê duplo clique para
   pegar uma palavra ou um caminho de arquivo inteiro.
+- **Busca no histórico** (`Ctrl+Shift+F`): procura um texto na tela e nas 10 mil
+  linhas de histórico do painel ativo, sem diferenciar maiúsculas, destaca as
+  ocorrências e mostra "3 de 17". `Enter` vai para a de cima, `Shift+Enter` para a
+  de baixo, e `Esc` fecha.
 - **Shift+Enter** quebra a linha no prompt do Claude Code sem enviar.
 - **Retomar sessões do Claude**: liste as conversas salvas do Claude Code (com
   título, pasta e quando foram usadas) e continue qualquer uma numa aba nova,
@@ -156,6 +160,7 @@ Para remover: `claude mcp remove nemux -s user`.
 | `Ctrl+V` / `Ctrl+Shift+V` | Colar |
 | Botão direito | Copiar a seleção, ou colar se não houver seleção |
 | `Shift+PageUp` / `Shift+PageDown` | Rolar o histórico (também com a roda do mouse ou a barra de rolagem de cada painel) |
+| `Ctrl+Shift+F` | Buscar no histórico do painel (`Enter` / `Shift+Enter`: ocorrência acima / abaixo; `Esc` fecha) |
 | `Ctrl+Shift+M` | Abrir / fechar o painel de memória |
 | `Ctrl+Shift+R` | Retomar uma sessão do Claude Code (também pelo botão "Sessões") |
 
@@ -262,6 +267,9 @@ memória usam sempre um banco temporário.
 - `Shift+Enter` envia `ESC CR` (o mesmo que `Alt+Enter`): é o que o Claude Code
   entende como nova linha, e o ConPTY do Windows 10 descarta as codificações
   modernas da tecla. Programas que esperam um Shift+Enter "de verdade" não o recebem.
+- A busca não acha um texto quebrado entre duas linhas da tela. Programas em tela
+  alternativa (`vim`, `less`, o Claude Code com `"tui": "fullscreen"`) não deixam
+  histórico no Nemux: neles a busca só vê o que está na tela.
 - O painel de memória ainda não cria nem edita memórias, só lista, busca e apaga.
 
 ## Licença

@@ -4,6 +4,7 @@ import { MemoryPanel, MemoryEntry } from "memory-panel.slint";
 import { TerminalPane, PaneView, TermLine, TermRun, SelRect } from "terminal-pane.slint";
 import { SessionPicker, SessionItem } from "session-picker.slint";
 import { ThemePicker, ThemeItem } from "theme-picker.slint";
+import { SearchBar } from "search-bar.slint";
 
 export { MemoryEntry, PaneView, TermLine, TermRun, SelRect, SessionItem, ThemeItem, Theme }
 
@@ -166,6 +167,11 @@ export component AppWindow inherits Window {
     in property <int> theme-index;
     in property <string> themes-note;
 
+    // Busca no histórico do painel ativo (Ctrl+Shift+F).
+    in-out property <bool> search-open;
+    in-out property <string> search-query;
+    in property <string> search-status;
+
     // Erro ao ler a configuração (ou ao gravar o tema); vazio quando não há.
     in property <string> config-error;
 
@@ -213,6 +219,10 @@ export component AppWindow inherits Window {
     callback session-open(int);
     callback config-error-dismissed();
     callback theme-chosen(int);
+    // Busca: o texto mudou, ir para a ocorrência acima (true) ou abaixo, e fechar.
+    callback search-changed(string);
+    callback search-step(bool);
+    callback search-closed();
 
     // Os widgets (campo de busca, lista) seguem o tema escuro do terminal.
     init => {
@@ -243,6 +253,23 @@ export component AppWindow inherits Window {
         if !root.themes-open {
             key-handler.focus();
         }
+    }
+
+    // Abre a busca (ou volta a ela) com o texto todo selecionado, pronto para trocar.
+    public function open-search() {
+        if !root.search-open {
+            root.search-open = true;
+            if root.search-query != "" {
+                root.search-changed(root.search-query);
+            }
+        }
+        search-bar.focus-input();
+    }
+
+    public function close-search() {
+        root.search-open = false;
+        root.search-closed();
+        key-handler.focus();
     }
 
     public function toggle-memory() {
@@ -440,6 +467,10 @@ export component AppWindow inherits Window {
                             root.toggle-memory();
                             return accept;
                         }
+                        if event.modifiers.control && event.modifiers.shift && !event.modifiers.alt && (event.text == "f" || event.text == "F") {
+                            root.open-search();
+                            return accept;
+                        }
                         if event.modifiers.control && event.modifiers.shift && !event.modifiers.alt && (event.text == "r" || event.text == "R") {
                             root.toggle-sessions();
                             return accept;
@@ -497,6 +528,17 @@ export component AppWindow inherits Window {
                         moved => { root.divider-drag(d.index, grip.x + self.mouse-x, grip.y + self.mouse-y); }
                         double-clicked => { root.divider-reset(d.index); }
                     }
+                }
+
+                search-bar := SearchBar {
+                    x: parent.width - self.width - 16px;
+                    y: 8px;
+                    visible: root.search-open;
+                    query <=> root.search-query;
+                    status: root.search-status;
+                    changed(text) => { root.search-changed(text); }
+                    step(up) => { root.search-step(up); }
+                    close => { root.close-search(); }
                 }
             }
 

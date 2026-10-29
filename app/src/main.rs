@@ -8,6 +8,7 @@ mod conpty;
 mod keys;
 mod layout;
 mod memory_view;
+mod search;
 mod selection;
 mod session_view;
 mod sessions;
@@ -306,6 +307,18 @@ pub fn init_controllers_with(
     ui.on_secondary_click({
         let on_change = on_change.clone();
         move |pane| on_change(&|app| app.secondary_click(pane_id(pane)))
+    });
+    ui.on_search_changed({
+        let on_change = on_change.clone();
+        move |text| on_change(&|app| app.set_search_query(&text))
+    });
+    ui.on_search_step({
+        let on_change = on_change.clone();
+        move |up| on_change(&|app| app.search_step(up))
+    });
+    ui.on_search_closed({
+        let on_change = on_change.clone();
+        move || on_change(&|app| app.close_search())
     });
     ui.on_key_input({
         let on_change = on_change.clone();

@@ -1,0 +1,111 @@
+import { LineEdit } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+// Botão pequeno da barra de busca (setas e fechar).
+component BarButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    callback clicked();
+
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+    background: touch.has-hover ? Theme.tab-hover : transparent;
+
+    Text {
+        text: root.icon;
+        color: touch.has-hover ? Theme.foreground : Theme.muted;
+        font-size: 14px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+// Busca no histórico do painel ativo: Enter vai para a ocorrência acima,
+// Shift+Enter para a de baixo, Esc fecha.
+export component SearchBar inherits Rectangle {
+    in-out property <string> query;
+    // "3 de 17", "Nenhum resultado" ou vazio.
+    in property <string> status;
+
+    callback changed(string);
+    callback step(bool);
+    callback close();
+
+    public function focus-input() {
+        input.focus();
+        input.select-all();
+    }
+
+    width: 400px;
+    height: 44px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: Theme.divider;
+    background: Theme.tab-bar;
+    drop-shadow-blur: 8px;
+    drop-shadow-color: #00000080;
+
+    // Engole os cliques para não chegarem ao terminal embaixo.
+    TouchArea { }
+
+    keys := FocusScope {
+        focus-on-click: false;
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.close();
+                return accept;
+            }
+            if event.text == Key.Return {
+                root.step(!event.modifiers.shift);
+                return accept;
+            }
+            reject
+        }
+
+        HorizontalLayout {
+            padding: 6px;
+            spacing: 4px;
+
+            input := LineEdit {
+                placeholder-text: "Buscar no histórico…";
+                text <=> root.query;
+                edited(text) => { root.changed(text); }
+            }
+
+            status-text := Text {
+                min-width: 92px;
+                text: root.status;
+                color: root.status == "Nenhum resultado" ? #e74856 : Theme.muted;
+                font-size: 12px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            BarButton {
+                icon: "↑";
+                label: "Ocorrência acima (Enter)";
+                clicked => { root.step(true); }
+            }
+
+            BarButton {
+                icon: "↓";
+                label: "Ocorrência abaixo (Shift+Enter)";
+                clicked => { root.step(false); }
+            }
+
+            BarButton {
+                icon: "×";
+                label: "Fechar busca (Esc)";
+                clicked => { root.close(); }
+            }
+        }
+    }
+}

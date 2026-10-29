@@ -35,6 +35,9 @@ export struct PaneView {
     cursor-row: int,
     cursor-col: int,
     selection: [SelRect],
+    // Ocorrências da busca na tela e a escolhida (linha -1 = nenhuma à vista).
+    matches: [SelRect],
+    current-match: SelRect,
     // Painel que recebe o teclado.
     active: bool,
     // O programa pediu atenção (sino ou notificação) e ninguém olhou ainda.
@@ -145,6 +148,24 @@ export component TerminalPane inherits Rectangle {
                     background: run.fg;
                 }
             }
+        }
+
+        for m in root.pane.matches: Rectangle {
+            x: m.col * root.cell-width;
+            y: m.row * root.cell-height;
+            width: m.width * root.cell-width;
+            height: root.cell-height;
+            background: Theme.attention.with-alpha(0.3);
+        }
+
+        if root.pane.current-match.row >= 0: current-match := Rectangle {
+            x: root.pane.current-match.col * root.cell-width;
+            y: root.pane.current-match.row * root.cell-height;
+            width: root.pane.current-match.width * root.cell-width;
+            height: root.cell-height;
+            background: Theme.attention.with-alpha(0.6);
+            border-width: 1px;
+            border-color: Theme.attention;
         }
 
         for sel in root.pane.selection: Rectangle {

@@ -11,6 +11,7 @@ use slint::{Model, ModelRc, VecModel};
 
 use crate::keys::{self, Mods};
 use crate::layout::{self, Direction, Node, PaneId, Rect, Split};
+use crate::search::{self, Match};
 use crate::selection::Selection;
 use crate::terminal::{Colors, Event, Rgb, Run, Terminal};
 use crate::workspace::{self, Resume, SavedNode, Workspace};
@@ -43,6 +44,16 @@ pub struct Pane {
     lines_model: Rc<VecModel<TermLine>>,
     /// Linhas mostradas na tela, para atualizar só as que mudaram.
     pub shown: Vec<Vec<Run>>,
+}
+
+/// Busca no histórico do painel ativo (Ctrl+Shift+F).
+#[derive(Default)]
+pub struct Search {
+    pub query: String,
+    /// Ocorrência escolhida e o painel onde ela foi achada.
+    pub current: Option<(PaneId, Match)>,
+    /// "3 de 17", "Nenhum resultado" ou vazio.
+    pub status: String,
 }
 
 pub struct Tab {
@@ -95,6 +106,8 @@ pub struct App {
     dragged: bool,
     /// Texto capturado quando a seleção terminou; é o que será copiado.
     pub selected_text: Option<String>,
+    /// Busca aberta; `None` quando a barra está fechada.
+    pub search: Option<Search>,
 }
 
 impl App {
@@ -125,6 +138,7 @@ impl App {
             selecting: false,
             dragged: false,
             selected_text: None,
+            search: None,
         }
     }
 
@@ -633,6 +647,88 @@ impl App {
         }
     }
 
+    // --- Busca ---
+
+    /// O texto da busca mudou: escolhe a ocorrência mais perto do fim do que está à vista.
+    pub fn set_search_query(&mut self, query: &str) {
+        let search = self.search.get_or_insert_with(Search::default);
+        search.query = query.to_owned();
+        search.current = None;
+        let Some(pane) = self.active_pane_id() else {
+            return;
+        };
+        let (matches, bottom) = {
+            let term = &self.panes[&pane].term;
+            let rows = self.panes[&pane].rows as usize;
+            (
+                term.find_all(query),
+                term.with_screen(search::top_line) + rows,
+            )
+        };
+        let index = matches
+            .iter()
+            .rposition(|m| m.line < bottom)
+            .or(matches.len().checked_sub(1));
+        self.show_match(pane, &matches, index);
+    }
+
+    /// Vai para a ocorrência acima (`up`) ou abaixo da atual, dando a volta nas pontas.
+    pub fn search_step(&mut self, up: bool) {
+        let (Some(search), Some(pane)) = (&self.search, self.active_pane_id()) else {
+            return;
+        };
+        let term = &self.panes[&pane].term;
+        let matches = term.find_all(&search.query);
+        // Sem ocorrência escolhida neste painel, parte da tela à vista.
+        let from = match search.current {
+            Some((p, m)) if p == pane => m,
+            _ => {
+                let top = term.with_screen(search::top_line);
+                let line = if up {
+                    top + self.panes[&pane].rows as usize
+                } else {
+                    top.saturating_sub(1)
+                };
+                Match {
+                    line,
+                    col: 0,
+                    width: 0,
+                }
+            }
+        };
+        let index = if up {
+            matches
+                .iter()
+                .rposition(|m| *m < from)
+                .or(matches.len().checked_sub(1))
+        } else {
+            matches
+                .iter()
+                .position(|m| *m > from)
+                .or((!matches.is_empty()).then_some(0))
+        };
+        self.show_match(pane, &matches, index);
+    }
+
+    fn show_match(&mut self, pane: PaneId, matches: &[Match], index: Option<usize>) {
+        let Some(search) = self.search.as_mut() else {
+            return;
+        };
+        search.current = index.map(|i| (pane, matches[i]));
+        search.status = match index {
+            _ if search.query.is_empty() => String::new(),
+            Some(i) => format!("{} de {}", i + 1, matches.len()),
+            None => "Nenhum resultado".to_owned(),
+        };
+        if let (Some((_, m)), Some(p)) = (search.current, self.panes.get(&pane)) {
+            p.term.scroll_to_line(m.line);
+        }
+    }
+
+    pub fn close_search(&mut self) {
+        self.search = None;
+    }
+
     // --- Teclado ---
 
     /// Trata uma tecla: atalhos do Nemux primeiro, senão envia ao painel ativo.
@@ -783,6 +879,12 @@ impl App {
             })
             .collect();
         update_model(&self.dividers_model, dividers);
+        ui.set_search_status(
+            self.search
+                .as_ref()
+                .map_or("", |s| s.status.as_str())
+                .into(),
+        );
 
         let model = &self.panes_model;
         let same_panes = model.row_count() == views.len()
@@ -798,8 +900,29 @@ impl App {
 
     fn pane_view(&mut self, id: PaneId, rect: Rect, active: bool) -> Option<PaneView> {
         let selection = self.selection.filter(|(p, _)| *p == id).map(|(_, s)| s);
+        // A busca vale para o painel ativo.
+        let search = self
+            .search
+            .as_ref()
+            .filter(|s| active && !s.query.is_empty());
         let pane = self.panes.get_mut(&id)?;
         let snap = pane.term.snapshot(&self.colors);
+        let to_rect = |(row, col, width): (u16, u16, u16)| SelRect {
+            row: row as i32,
+            col: col as i32,
+            width: width as i32,
+        };
+        let (matches, current_match) = match search {
+            Some(s) => pane.term.with_screen(|screen| {
+                let top = search::top_line(screen);
+                let current = s
+                    .current
+                    .filter(|(p, m)| *p == id && m.line >= top && m.line - top < pane.rows as usize)
+                    .map(|(_, m)| to_rect(((m.line - top) as u16, m.col, m.width)));
+                (search::visible(screen, &s.query), current)
+            }),
+            None => (Vec::new(), None),
+        };
 
         let model = &pane.lines_model;
         if model.row_count() != snap.lines.len() {
@@ -818,12 +941,9 @@ impl App {
             .map(|s| s.rects(pane.cols))
             .unwrap_or_default()
             .into_iter()
-            .map(|(row, col, width)| SelRect {
-                row: row as i32,
-                col: col as i32,
-                width: width as i32,
-            })
+            .map(to_rect)
             .collect();
+        let matches: Vec<SelRect> = matches.into_iter().map(to_rect).collect();
 
         Some(PaneView {
             id: id as i32,
@@ -835,6 +955,12 @@ impl App {
             cursor_row,
             cursor_col,
             selection: ModelRc::new(VecModel::from(sel_rects)),
+            matches: ModelRc::new(VecModel::from(matches)),
+            current_match: current_match.unwrap_or(SelRect {
+                row: -1,
+                col: 0,
+                width: 0,
+            }),
             active,
             attention: pane.attention,
             rows: pane.rows as i32,

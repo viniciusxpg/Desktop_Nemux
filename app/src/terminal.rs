@@ -8,6 +8,8 @@ use std::thread;
 
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 
+use crate::search;
+
 const SCROLLBACK: usize = 10_000;
 
 /// Eventos que as threads do terminal enviam para a interface.
@@ -270,6 +272,18 @@ impl Terminal {
             .unwrap()
             .screen_mut()
             .set_scrollback(offset);
+    }
+
+    /// Todas as ocorrências de `query` no histórico e na tela (ver `search`).
+    pub fn find_all(&self, query: &str) -> Vec<search::Match> {
+        search::find_all(self.parser.lock().unwrap().screen_mut(), query)
+    }
+
+    /// Rola até a linha `line` (contada do topo do histórico) ficar à vista.
+    pub fn scroll_to_line(&self, line: usize) {
+        let mut parser = self.parser.lock().unwrap();
+        let offset = search::offset_showing(parser.screen(), line);
+        parser.screen_mut().set_scrollback(offset);
     }
 
     /// Formato em que o programa quer receber o mouse, se ele ligou o mouse.
