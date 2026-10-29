@@ -37,6 +37,8 @@ export struct PaneView {
     selection: [SelRect],
     // Painel que recebe o teclado.
     active: bool,
+    // O programa pediu atenção (sino ou notificação) e ninguém olhou ainda.
+    attention: bool,
     // Linhas visíveis, linhas no histórico acima da tela e quantas linhas acima
     // do fim a tela está (0 = ao vivo): alimentam a barra de rolagem.
     rows: int,
@@ -213,5 +215,10 @@ export component TerminalPane inherits Rectangle {
     if root.highlight && root.pane.active: Rectangle {
         border-width: 1px;
         border-color: Theme.accent.with-alpha(0.8);
+    }
+
+    if root.pane.attention: attention-border := Rectangle {
+        border-width: 2px;
+        border-color: Theme.attention;
     }
 }

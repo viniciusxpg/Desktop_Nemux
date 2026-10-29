@@ -13,7 +13,7 @@ nemux-memory = { version = "0.1.0", path = "../memory" }
 portable-pty = "0.9.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-slint = "1.18.1"
+slint = { version = "1.18.1", features = ["raw-window-handle-06"] }
 toml = "1.1.8"
 toml_edit = "0.25"
 vt100 = "0.18.1"
@@ -21,7 +21,10 @@ vt100 = "0.18.1"
 [target.'cfg(windows)'.dependencies]
 # Carrega o ConPTY embutido pelo caminho completo (src/conpty.rs).
 libloading = "0.8"
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
+# Saber se um processo ainda roda (workspace.rs), a janela da frente e piscar a
+# barra de tarefas (window.rs).
+raw-window-handle = "0.6.2"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
 
 [build-dependencies]
 ico = "0.6.0"

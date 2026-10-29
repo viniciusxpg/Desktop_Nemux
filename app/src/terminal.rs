@@ -19,6 +19,8 @@ pub enum Event {
     Title(String),
     /// O shell informou a pasta atual (OSC 7 ou OSC 9;9).
     Cwd(PathBuf),
+    /// O programa pediu atenção: sino (BEL) ou notificação (OSC 9, 99 ou 777).
+    Attention,
     /// O processo terminou.
     Exited,
 }
@@ -29,6 +31,7 @@ pub struct Callbacks {
     replies: Vec<u8>,
     title: Option<String>,
     cwd: Option<PathBuf>,
+    attention: bool,
 }
 
 impl vt100::Callbacks for Callbacks {
@@ -63,7 +66,24 @@ impl vt100::Callbacks for Callbacks {
     fn unhandled_osc(&mut self, _: &mut vt100::Screen, params: &[&[u8]]) {
         if let Some(cwd) = osc_cwd(params) {
             self.cwd = Some(cwd);
+        } else if is_notification(params) {
+            self.attention = true;
         }
+    }
+
+    fn audible_bell(&mut self, _: &mut vt100::Screen) {
+        self.attention = true;
+    }
+}
+
+/// Notificações de terminal: `OSC 9 ; mensagem` (iTerm2; os `OSC 9 ; <número>` são
+/// outros comandos, do ConEmu), `OSC 99` (kitty) e `OSC 777 ; notify` (Ghostty e outros).
+fn is_notification(params: &[&[u8]]) -> bool {
+    match params {
+        [b"9", first, ..] => !first.is_empty() && !first.iter().all(u8::is_ascii_digit),
+        [b"99", ..] => true,
+        [b"777", b"notify", ..] => true,
+        _ => false,
     }
 }
 
@@ -163,7 +183,7 @@ impl Terminal {
                         Ok(0) | Err(_) => break,
                         Ok(n) => n,
                     };
-                    let (replies, title, cwd) = {
+                    let (replies, title, cwd, attention) = {
                         let mut parser = parser.lock().unwrap();
                         parser.process(&buf[..n]);
                         let cb = parser.callbacks_mut();
@@ -171,6 +191,7 @@ impl Terminal {
                             std::mem::take(&mut cb.replies),
                             cb.title.take(),
                             cb.cwd.take(),
+                            std::mem::take(&mut cb.attention),
                         )
                     };
                     if !replies.is_empty() {
@@ -182,6 +203,9 @@ impl Terminal {
                     }
                     if let Some(cwd) = cwd {
                         on_event(Event::Cwd(cwd));
+                    }
+                    if attention {
+                        on_event(Event::Attention);
                     }
                     on_event(Event::Output);
                 }
@@ -637,6 +661,57 @@ mod tests {
         // Negrito usa a versão clara da paleta; inverso troca texto e fundo padrão.
         assert_eq!(fg, [(1, 1, 1), (9, 0, 0), (99, 0, 0), (2, 2, 2)]);
         assert_eq!(line[3].bg, Some((1, 1, 1)));
+    }
+
+    #[test]
+    fn bell_and_notifications_ask_for_attention() {
+        let attention = |seq: &[u8]| {
+            let mut p = parser(1, 10);
+            p.process(seq);
+            std::mem::take(&mut p.callbacks_mut().attention)
+        };
+        assert!(attention(b"\x07"));
+        assert!(attention(
+            b"\x1b]9;\n\nClaude is waiting for your input\x07"
+        ));
+        assert!(attention(b"\x1b]9;pronto\x1b\\"));
+        assert!(attention(b"\x1b]99;i=1:d=0;Claude Code\x1b\\"));
+        assert!(attention(b"\x1b]777;notify;Claude Code;pronto\x07"));
+        assert!(!attention(b"texto"));
+        assert!(!attention(b"\x1b]9;4;1;50\x07"), "OSC 9;4 é progresso");
+        assert!(!attention(b"\x1b]9;9;\"C:\\x\"\x07"), "OSC 9;9 é a pasta");
+        assert!(!attention(b"\x1b]0;titulo\x07"));
+    }
+
+    /// O ConPTY repassa o sino e o OSC 9 de um programa de verdade.
+    #[test]
+    fn real_process_bell_and_osc9() {
+        use std::sync::mpsc;
+        use std::time::{Duration, Instant};
+
+        let espera = |script: &str| {
+            let (tx, rx) = mpsc::channel();
+            let mut cmd = CommandBuilder::new("powershell.exe");
+            cmd.args(["-NoLogo", "-NoProfile", "-Command", script]);
+            let tx = Mutex::new(tx);
+            let _term = Terminal::spawn(cmd, 10, 40, move |e| {
+                let _ = tx.lock().unwrap().send(e);
+            })
+            .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(20);
+            loop {
+                match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                    Ok(Event::Attention) => return true,
+                    Ok(Event::Exited) | Err(_) => return false,
+                    Ok(_) => {}
+                }
+            }
+        };
+        assert!(espera("[Console]::Write([char]7); Start-Sleep 1"), "BEL");
+        assert!(
+            espera("[Console]::Write(\"$([char]27)]9;`n`nola$([char]7)\"); Start-Sleep 1"),
+            "OSC 9"
+        );
     }
 
     /// Roda um processo de verdade no ConPTY e confere a saída.

@@ -251,6 +251,7 @@ impl Config {
         theme.set_accent(scheme.accent.color());
         theme.set_muted(scheme.muted.color());
         theme.set_divider(scheme.divider.color());
+        theme.set_attention(rgb(scheme.terminal.palette[3]));
         if let Some(family) = &self.font.family {
             theme.set_font_family(family.as_str().into());
         }

@@ -109,6 +109,15 @@ janela (backend de testes do Slint + renderizador por software):
   era copiado para junto do `.exe`, e um `.exe` copiado sozinho para outra pasta
   perdia a correção. `NEMUX_SYSTEM_CONPTY=1` usa o do Windows (o teste
   `ui_tests::mouse::roda...` falha com ele, e isso é esperado).
+- Avisos: `Event::Attention` vem do BEL e dos OSC 9 (com texto; `OSC 9;<número>`
+  são comandos do ConEmu, como 9;4 progresso e 9;9 pasta), 99 e 777;notify.
+  O Claude Code no modo `auto` não manda nada a terminais que não conhece (só
+  iTerm2, kitty, Ghostty e o Terminal do macOS): o usuário precisa de
+  `"preferredNotifChannel": "terminal_bell"` (ou `iterm2`) no
+  `~/.claude/settings.json`. Um pedido marca o painel se ninguém o está olhando (`App::watched`: foco + janela na frente,
+  `window::is_foreground`) e chama `App::on_attention`, que pisca a barra de
+  tarefas (`window::flash`, `FlashWindowEx`). `render()` limpa o que está à vista.
+  Saída nos 3 primeiros segundos de um painel não marca a aba (abas restauradas).
 - A roda do mouse (`App::wheel`) vai para o programa se ele ligou o mouse; na
   tela alternativa sem mouse vira setas; senão rola o histórico do Nemux.
 - O ConPTY pergunta a posição do cursor (`ESC[6n`) ao iniciar e espera a

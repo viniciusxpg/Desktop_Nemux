@@ -52,6 +52,27 @@ Aba 3: claude ─┘                     ▲
   e as **sessões do Claude**, retomadas com `claude --resume` no painel onde
   estavam (isso precisa da memória ligada; veja abaixo).
 
+- **Avisos**: uma aba escondida com saída nova ganha um ponto cinza. Quando um
+  programa pede atenção (o sino, ou uma notificação OSC 9, 99 ou 777) sem você
+  estar olhando para ele, a aba ganha um ponto amarelo, o painel uma borda
+  amarela e, com o Nemux atrás de outra janela, o botão na barra de tarefas pisca.
+
+### Avisos do Claude Code
+
+O Claude Code só avisa o terminal quando termina ou precisa de você se souber
+como: no modo padrão (`auto`) ele reconhece só alguns terminais, e o Nemux não é
+um deles. Diga a ele para usar o sino, em `~/.claude/settings.json` (vale para
+todas as sessões):
+
+```json
+{
+  "preferredNotifChannel": "terminal_bell"
+}
+```
+
+Ou pelo `/config` dentro do Claude. `iterm2` e `iterm2_with_bell` também funcionam:
+o Nemux entende o OSC 9 que eles mandam.
+
 ### Como as sessões do Claude voltam
 
 Cada painel recebe a variável `NEMUX_PANE`. Quando um Claude abre num painel, o

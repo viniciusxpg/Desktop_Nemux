@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
+use std::time::{Duration, Instant};
 
 use portable_pty::CommandBuilder;
 use slint::{Model, ModelRc, VecModel};
@@ -17,6 +18,9 @@ use crate::{AppWindow, DividerView, PaneView, SelRect, TabInfo, TermLine, TermRu
 
 /// Espaço entre painéis vizinhos; nele aparece a cor de divisória do fundo.
 pub const PANE_GAP: f32 = 2.0;
+/// Saída nos primeiros instantes de um painel (o prompt, uma sessão retomada) não
+/// conta como novidade numa aba escondida.
+const QUIET_START: Duration = Duration::from_secs(3);
 /// Menor painel que uma divisão pode criar.
 const MIN_COLS: u16 = 20;
 const MIN_ROWS: u16 = 4;
@@ -28,6 +32,11 @@ pub struct Pane {
     pub token: String,
     /// Pasta atual: a de quando abriu, até o shell informar outra (OSC 7 ou 9;9).
     pub cwd: Option<PathBuf>,
+    /// Saída nova enquanto a aba estava escondida.
+    pub activity: bool,
+    /// O programa pediu atenção (sino ou notificação) e ninguém olhou ainda.
+    pub attention: bool,
+    pub(crate) started: Instant,
     pub term: Terminal,
     pub rows: u16,
     pub cols: u16,
@@ -66,6 +75,10 @@ pub struct App {
     pub shell: Box<dyn Fn() -> CommandBuilder>,
     /// Comando que retoma uma sessão do Claude ao restaurar as abas (os testes trocam).
     pub resume: Box<Resume>,
+    /// A janela do app está em primeiro plano? (Os testes trocam.)
+    pub foreground: Box<dyn Fn() -> bool>,
+    /// Chamado quando um painel pede atenção sem ninguém olhando: pisca a barra de tarefas.
+    pub on_attention: Box<dyn Fn()>,
     /// Cores do terminal (da configuração).
     pub colors: Colors,
     clipboard: Option<arboard::Clipboard>,
@@ -101,6 +114,8 @@ impl App {
             events,
             shell: Box::new(|| shell_command(None)),
             resume: Box::new(crate::sessions::resume_in),
+            foreground: Box::new(|| true),
+            on_attention: Box::new(|| {}),
             colors: Colors::default(),
             clipboard: None,
             panes_model,
@@ -166,6 +181,9 @@ impl App {
                         title: format!("Terminal {}", id + 1),
                         token,
                         cwd,
+                        activity: false,
+                        attention: false,
+                        started: Instant::now(),
                         term,
                         rows,
                         cols,
@@ -414,9 +432,36 @@ impl App {
         }
     }
 
+    /// O painel está na aba à vista?
+    fn visible(&self, pane: PaneId) -> bool {
+        self.tab_of(pane) == Some(self.active)
+    }
+
+    /// O usuário está olhando para o painel: à vista, com o foco e com a janela na frente.
+    fn watched(&self, pane: PaneId) -> bool {
+        self.active_pane_id() == Some(pane) && (self.foreground)()
+    }
+
     pub fn on_event(&mut self, pane: PaneId, event: &Event) {
         match event {
-            Event::Output => {}
+            Event::Output => {
+                let hidden = !self.visible(pane);
+                if let Some(p) = self.panes.get_mut(&pane)
+                    && hidden
+                    && p.started.elapsed() >= QUIET_START
+                {
+                    p.activity = true;
+                }
+            }
+            Event::Attention => {
+                let watched = self.watched(pane);
+                if let Some(p) = self.panes.get_mut(&pane)
+                    && !watched
+                {
+                    p.attention = true;
+                    (self.on_attention)();
+                }
+            }
             Event::Title(title) if !title.trim().is_empty() => {
                 if let Some(p) = self.panes.get_mut(&pane) {
                     p.title = title.clone();
@@ -664,16 +709,44 @@ impl App {
 
     // --- Desenho ---
 
+    /// Apaga as marcas do que está à vista: a novidade da aba ativa e o pedido de
+    /// atenção do painel com o foco (se a janela estiver na frente).
+    fn clear_seen(&mut self) {
+        let Some(tab) = self.tabs.get(self.active) else {
+            return;
+        };
+        let watched = self.watched(tab.active).then_some(tab.active);
+        for id in tab.layout.leaves() {
+            if let Some(p) = self.panes.get_mut(&id) {
+                p.activity = false;
+                if Some(id) == watched {
+                    p.attention = false;
+                }
+            }
+        }
+    }
+
     pub fn render(&mut self, ui: &AppWindow) {
+        self.clear_seen();
         let tabs: Vec<TabInfo> = self
             .tabs
             .iter()
-            .map(|t| TabInfo {
-                title: self
-                    .panes
-                    .get(&t.active)
-                    .map_or("", |p| p.title.as_str())
-                    .into(),
+            .map(|t| {
+                let panes: Vec<&Pane> = t
+                    .layout
+                    .leaves()
+                    .iter()
+                    .filter_map(|id| self.panes.get(id))
+                    .collect();
+                TabInfo {
+                    title: self
+                        .panes
+                        .get(&t.active)
+                        .map_or("", |p| p.title.as_str())
+                        .into(),
+                    activity: panes.iter().any(|p| p.activity),
+                    attention: panes.iter().any(|p| p.attention),
+                }
             })
             .collect();
         update_model(&self.tabs_model, tabs);
@@ -763,6 +836,7 @@ impl App {
             cursor_col,
             selection: ModelRc::new(VecModel::from(sel_rects)),
             active,
+            attention: pane.attention,
             rows: pane.rows as i32,
             history: snap.history as i32,
             offset: snap.offset as i32,

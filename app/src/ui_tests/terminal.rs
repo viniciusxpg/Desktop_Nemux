@@ -46,6 +46,7 @@ fn mostrar(app: &AppWindow, ansi: &str) {
         cursor_col,
         selection: ModelRc::default(),
         active: true,
+        attention: false,
         rows: rows as i32,
         history: 0,
         offset: 0,
@@ -56,7 +57,10 @@ fn mostrar(app: &AppWindow, ansi: &str) {
 fn abas(app: &AppWindow, titulos: &[&str], ativa: i32) {
     let tabs: Vec<_> = titulos
         .iter()
-        .map(|t| TabInfo { title: (*t).into() })
+        .map(|t| TabInfo {
+            title: (*t).into(),
+            ..Default::default()
+        })
         .collect();
     app.set_tabs(ModelRc::new(VecModel::from(tabs)));
     app.set_active_tab(ativa);

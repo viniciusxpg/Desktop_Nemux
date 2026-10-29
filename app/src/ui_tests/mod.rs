@@ -5,6 +5,7 @@
 // As capturas vão para <workspace>/target/ui-capturas/<nome>.png.
 
 mod abas_salvas;
+mod avisos;
 mod config;
 mod divisorias;
 mod memoria;

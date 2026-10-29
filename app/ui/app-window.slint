@@ -19,11 +19,17 @@ export struct DividerView {
 
 export struct TabInfo {
     title: string,
+    // Saída nova enquanto a aba estava escondida.
+    activity: bool,
+    // Algum painel da aba pediu atenção (sino ou notificação).
+    attention: bool,
 }
 
 component TabButton inherits Rectangle {
     in property <string> title;
     in property <bool> active;
+    in property <bool> activity;
+    in property <bool> attention;
     callback clicked();
     callback close();
 
@@ -51,9 +57,23 @@ component TabButton inherits Rectangle {
         padding-right: 4px;
         spacing: 4px;
 
+        // Atenção: ponto maior na cor de aviso; novidade: ponto pequeno e discreto.
+        if root.attention || root.activity: Rectangle {
+            width: 10px;
+
+            Rectangle {
+                width: root.attention ? 8px : 6px;
+                height: self.width;
+                border-radius: self.width / 2;
+                background: root.attention ? Theme.attention : Theme.muted;
+                accessible-role: text;
+                accessible-label: root.attention ? "Pede atenção" : "Saída nova";
+            }
+        }
+
         Text {
             text: root.title;
-            color: root.active ? Theme.foreground : Theme.muted;
+            color: root.active || root.attention ? Theme.foreground : Theme.muted;
             vertical-alignment: center;
             overflow: elide;
             horizontal-stretch: 1;
@@ -251,6 +271,8 @@ export component AppWindow inherits Window {
                 for tab[i] in root.tabs: TabButton {
                     title: tab.title;
                     active: i == root.active-tab;
+                    activity: tab.activity;
+                    attention: tab.attention;
                     clicked => {
                         root.select-tab(i);
                         key-handler.focus();

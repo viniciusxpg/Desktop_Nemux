@@ -14,6 +14,7 @@ mod sessions;
 mod terminal;
 #[cfg(test)]
 mod ui_tests;
+mod window;
 mod workspace;
 
 use std::cell::RefCell;
@@ -174,6 +175,18 @@ pub fn init_controllers_with(
     app.colors = config.terminal_colors();
     let shell = config.shell.clone();
     app.shell = Box::new(move || app::shell_command(shell.as_deref()));
+    app.foreground = Box::new({
+        let weak = ui.as_weak();
+        move || weak.upgrade().is_none_or(|ui| window::is_foreground(&ui))
+    });
+    app.on_attention = Box::new({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                window::flash(&ui);
+            }
+        }
+    });
     let app = Rc::new(RefCell::new(app));
 
     // Escolher um tema aplica na hora a todos os painéis e grava no config.toml.
