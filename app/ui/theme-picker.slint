@@ -1,0 +1,155 @@
+import { Theme } from "theme.slint";
+
+export struct ThemeItem {
+    name: string,
+    background: color,
+    foreground: color,
+    accent: color,
+    // Algumas cores da paleta, para dar uma ideia do tema.
+    swatches: [color],
+}
+
+component ThemeRow inherits Rectangle {
+    in property <ThemeItem> item;
+    in property <bool> current;
+    callback clicked();
+
+    height: 44px;
+    border-radius: 6px;
+    background: touch.has-hover ? Theme.tab-hover : transparent;
+    accessible-role: button;
+    accessible-label: "Tema " + root.item.name;
+    accessible-checked: root.current;
+    accessible-action-default => { root.clicked(); }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding: 6px;
+        spacing: 10px;
+
+        // Amostra: fundo do tema, "Aa" no texto do tema e uma faixa no destaque.
+        Rectangle {
+            width: 56px;
+            border-radius: 4px;
+            background: root.item.background;
+            border-width: root.current ? 2px : 1px;
+            border-color: root.current ? Theme.accent : Theme.divider;
+            clip: true;
+
+            Text {
+                text: "Aa";
+                color: root.item.foreground;
+                font-family: Theme.font-family;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            Rectangle {
+                y: parent.height - 4px;
+                height: 4px;
+                background: root.item.accent;
+            }
+        }
+
+        VerticalLayout {
+            alignment: center;
+            spacing: 4px;
+
+            Text {
+                text: root.item.name;
+                color: Theme.foreground;
+                font-weight: root.current ? 700 : 400;
+                overflow: elide;
+            }
+
+            HorizontalLayout {
+                alignment: start;
+                spacing: 3px;
+
+                for c in root.item.swatches: Rectangle {
+                    width: 10px;
+                    height: 10px;
+                    border-radius: 2px;
+                    background: c;
+                }
+            }
+        }
+
+        if root.current: Text {
+            text: "✓";
+            color: Theme.accent;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// Lista de temas prontos, abaixo do botão "Temas". Escolher aplica na hora e
+// mantém a lista aberta, para comparar; clicar fora ou Esc fecha.
+export component ThemePicker inherits Rectangle {
+    in property <[ThemeItem]> themes;
+    in property <int> current;
+    // Aviso quando o config.toml troca cores por cima do tema.
+    in property <string> note;
+    // Posição do canto superior direito do cartão.
+    in property <length> anchor-right;
+    in property <length> anchor-top;
+
+    callback choose(int);
+    callback close();
+
+    init => {
+        keys.focus();
+    }
+
+    TouchArea {
+        clicked => { root.close(); }
+    }
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.close();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    card := Rectangle {
+        x: root.anchor-right - self.width;
+        y: root.anchor-top;
+        width: 260px;
+        height: list.preferred-height;
+        border-radius: 8px;
+        background: Theme.tab-bar;
+        border-width: 1px;
+        border-color: Theme.divider;
+        drop-shadow-blur: 12px;
+        drop-shadow-color: #00000080;
+
+        // Engole os cliques dentro do cartão, para não fechar.
+        TouchArea { }
+
+        list := VerticalLayout {
+            padding: 6px;
+            spacing: 2px;
+
+            for item[i] in root.themes: ThemeRow {
+                item: item;
+                current: i == root.current;
+                clicked => { root.choose(i); }
+            }
+
+            if root.note != "": Text {
+                text: root.note;
+                color: Theme.muted;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+    }
+}

@@ -1,23 +1,27 @@
 //! Configuração do usuário: `%APPDATA%\nemux\config.toml` (ou `NEMUX_CONFIG`).
-//! Tudo é opcional; o que faltar fica com o padrão. Lida só ao abrir o app.
+//! Tudo é opcional; o que faltar fica com o padrão. Lida ao abrir o app; o tema
+//! também pode ser trocado pela interface, que o grava de volta no arquivo.
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use serde::Deserialize;
-use slint::ComponentHandle;
+use slint::{ComponentHandle, ModelRc, VecModel};
 
 use crate::terminal::{Colors, Rgb};
-use crate::{AppWindow, Theme};
+use crate::{AppWindow, Theme, ThemeItem};
 
 #[derive(Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Linha de comando de cada painel novo, ex.: `"pwsh.exe -NoLogo"`.
     pub shell: Option<String>,
+    /// Nome de um dos temas prontos (`themes.toml`); sem ele, o primeiro.
+    pub theme: Option<String>,
     pub font: Font,
-    /// Cores do terminal.
+    /// Cores do terminal, por cima das do tema.
     pub colors: TermColors,
-    /// Cores da interface em volta dos terminais.
+    /// Cores da interface em volta dos terminais, por cima das do tema.
     pub app: AppColors,
 }
 
@@ -74,8 +78,89 @@ impl Hex {
         (self.0, self.1, self.2)
     }
 
-    fn color(self) -> slint::Color {
+    pub fn color(self) -> slint::Color {
         slint::Color::from_argb_u8(self.3, self.0, self.1, self.2)
+    }
+}
+
+/// Um tema pronto, como está em `themes.toml`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Preset {
+    pub name: String,
+    pub colors: TermColors,
+    pub app: AppColors,
+}
+
+/// Os temas prontos; o primeiro é o padrão.
+pub fn presets() -> &'static [Preset] {
+    #[derive(Deserialize)]
+    struct File {
+        theme: Vec<Preset>,
+    }
+    static PRESETS: OnceLock<Vec<Preset>> = OnceLock::new();
+    PRESETS.get_or_init(|| {
+        let file: File = toml::from_str(include_str!("themes.toml")).expect("themes.toml válido");
+        file.theme
+    })
+}
+
+/// Todas as cores já resolvidas: o tema com as do usuário por cima.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Scheme {
+    pub terminal: Colors,
+    pub selection: Hex,
+    pub tab_bar: Hex,
+    pub tab_hover: Hex,
+    pub accent: Hex,
+    pub muted: Hex,
+    pub divider: Hex,
+}
+
+impl Scheme {
+    /// O tema `preset`; os testes garantem que todo tema pronto define todas as cores.
+    fn of(preset: &Preset) -> Self {
+        let (c, a) = (&preset.colors, &preset.app);
+        let mut scheme = Self {
+            terminal: Colors::default(),
+            selection: c.selection.expect("tema sem selection"),
+            tab_bar: a.tab_bar.expect("tema sem tab_bar"),
+            tab_hover: a.tab_hover.expect("tema sem tab_hover"),
+            accent: a.accent.expect("tema sem accent"),
+            muted: a.muted.expect("tema sem muted"),
+            divider: a.divider.expect("tema sem divider"),
+        };
+        scheme.overlay(c, a);
+        scheme
+    }
+
+    /// Troca as cores que `colors` e `app` definem.
+    fn overlay(&mut self, colors: &TermColors, app: &AppColors) {
+        let t = &mut self.terminal;
+        if let Some(c) = colors.foreground {
+            t.foreground = c.rgb();
+        }
+        if let Some(c) = colors.background {
+            t.background = c.rgb();
+        }
+        if let Some(palette) = &colors.palette {
+            for (slot, hex) in t.palette.iter_mut().zip(palette) {
+                *slot = hex.rgb();
+            }
+        }
+        let pairs = [
+            (&mut self.selection, colors.selection),
+            (&mut self.tab_bar, app.tab_bar),
+            (&mut self.tab_hover, app.tab_hover),
+            (&mut self.accent, app.accent),
+            (&mut self.muted, app.muted),
+            (&mut self.divider, app.divider),
+        ];
+        for (slot, color) in pairs {
+            if let Some(c) = color {
+                *slot = c;
+            }
+        }
     }
 }
 
@@ -116,55 +201,54 @@ impl Config {
         {
             return Err(format!("font.size precisa estar entre 6 e 72 (é {size})"));
         }
+        if let Some(name) = &config.theme
+            && preset_index(name).is_none()
+        {
+            let names: Vec<_> = presets().iter().map(|p| p.name.as_str()).collect();
+            return Err(format!(
+                "tema desconhecido {name:?} (os temas são: {})",
+                names.join(", ")
+            ));
+        }
         Ok(config)
     }
 
-    /// Cores do terminal, com o padrão no que não foi configurado.
+    /// Índice do tema escolhido em `presets()`.
+    pub fn theme_index(&self) -> usize {
+        self.theme.as_deref().and_then(preset_index).unwrap_or(0)
+    }
+
+    /// O arquivo troca alguma cor do tema (em `[colors]` ou `[app]`)?
+    pub fn overrides_theme(&self) -> bool {
+        self.colors != TermColors::default() || self.app != AppColors::default()
+    }
+
+    pub fn scheme(&self) -> Scheme {
+        let mut scheme = Scheme::of(&presets()[self.theme_index()]);
+        scheme.overlay(&self.colors, &self.app);
+        scheme
+    }
+
+    /// Cores do terminal, já com o tema.
     pub fn terminal_colors(&self) -> Colors {
-        let mut colors = Colors::default();
-        let c = &self.colors;
-        if let Some(fg) = c.foreground {
-            colors.foreground = fg.rgb();
-        }
-        if let Some(bg) = c.background {
-            colors.background = bg.rgb();
-        }
-        if let Some(palette) = &c.palette {
-            for (slot, hex) in colors.palette.iter_mut().zip(palette) {
-                *slot = hex.rgb();
-            }
-        }
-        colors
+        self.scheme().terminal
     }
 
     /// Passa fonte e cores para o tema da interface.
     pub fn apply_theme(&self, ui: &AppWindow) {
         let theme = ui.global::<Theme>();
-        let colors = self.terminal_colors();
+        let scheme = self.scheme();
         let rgb = |(r, g, b): Rgb| slint::Color::from_rgb_u8(r, g, b);
         // O fundo e o texto do painel são os do terminal; a aba ativa se funde com ele.
-        theme.set_background(rgb(colors.background));
-        theme.set_tab_active(rgb(colors.background));
-        theme.set_foreground(rgb(colors.foreground));
-        if let Some(c) = self.colors.selection {
-            theme.set_selection(c.color());
-        }
-        let app = &self.app;
-        if let Some(c) = app.tab_bar {
-            theme.set_tab_bar(c.color());
-        }
-        if let Some(c) = app.tab_hover {
-            theme.set_tab_hover(c.color());
-        }
-        if let Some(c) = app.accent {
-            theme.set_accent(c.color());
-        }
-        if let Some(c) = app.muted {
-            theme.set_muted(c.color());
-        }
-        if let Some(c) = app.divider {
-            theme.set_divider(c.color());
-        }
+        theme.set_background(rgb(scheme.terminal.background));
+        theme.set_tab_active(rgb(scheme.terminal.background));
+        theme.set_foreground(rgb(scheme.terminal.foreground));
+        theme.set_selection(scheme.selection.color());
+        theme.set_tab_bar(scheme.tab_bar.color());
+        theme.set_tab_hover(scheme.tab_hover.color());
+        theme.set_accent(scheme.accent.color());
+        theme.set_muted(scheme.muted.color());
+        theme.set_divider(scheme.divider.color());
         if let Some(family) = &self.font.family {
             theme.set_font_family(family.as_str().into());
         }
@@ -172,6 +256,51 @@ impl Config {
             theme.set_font_size(size);
         }
     }
+}
+
+/// Os temas prontos como a lista da interface os mostra.
+pub fn theme_items() -> Vec<ThemeItem> {
+    presets()
+        .iter()
+        .map(|preset| {
+            let scheme = Scheme::of(preset);
+            let rgb = |(r, g, b): Rgb| slint::Color::from_rgb_u8(r, g, b);
+            // Vermelho, verde, amarelo, azul, magenta e ciano.
+            let swatches: Vec<_> = scheme.terminal.palette[1..7]
+                .iter()
+                .map(|&c| rgb(c))
+                .collect();
+            ThemeItem {
+                name: preset.name.as_str().into(),
+                background: rgb(scheme.terminal.background),
+                foreground: rgb(scheme.terminal.foreground),
+                accent: scheme.accent.color(),
+                swatches: ModelRc::new(VecModel::from(swatches)),
+            }
+        })
+        .collect()
+}
+
+fn preset_index(name: &str) -> Option<usize> {
+    presets()
+        .iter()
+        .position(|p| p.name.eq_ignore_ascii_case(name))
+}
+
+/// Grava `theme = "<name>"` em `path`, mantendo o resto do arquivo (e os comentários).
+pub fn save_theme(path: &Path, name: &str) -> Result<(), String> {
+    let err = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(err(&e)),
+    };
+    let mut doc: toml_edit::DocumentMut = text.parse().map_err(|e| err(&e))?;
+    doc["theme"] = toml_edit::value(name);
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| err(&e))?;
+    }
+    std::fs::write(path, doc.to_string()).map_err(|e| err(&e))
 }
 
 #[cfg(test)]
@@ -227,6 +356,70 @@ mod tests {
             .expect("bloco toml no README");
         let config = Config::parse(exemplo).unwrap();
         assert_eq!(config.terminal_colors(), Colors::default());
+    }
+
+    #[test]
+    fn temas_prontos_definem_todas_as_cores() {
+        assert!(presets().len() > 1);
+        for preset in presets() {
+            let (c, a) = (&preset.colors, &preset.app);
+            assert!(
+                c.foreground.is_some() && c.background.is_some(),
+                "{}",
+                preset.name
+            );
+            assert_eq!(
+                c.palette.as_ref().map(Vec::len),
+                Some(16),
+                "{}",
+                preset.name
+            );
+            Scheme::of(preset);
+            assert!(a.tab_bar.is_some() && a.muted.is_some(), "{}", preset.name);
+        }
+        // O primeiro é o padrão do terminal (e do theme.slint).
+        assert_eq!(Scheme::of(&presets()[0]).terminal, Colors::default());
+    }
+
+    #[test]
+    fn tema_e_cores_por_cima() {
+        let config = Config::parse("theme = \"dracula\"").unwrap();
+        assert_eq!(presets()[config.theme_index()].name, "Dracula");
+        assert_eq!(config.terminal_colors().background, (0x28, 0x2a, 0x36));
+        assert!(!config.overrides_theme());
+
+        let config =
+            Config::parse("theme = \"Dracula\"\n[colors]\nbackground = \"#000000\"").unwrap();
+        let scheme = config.scheme();
+        assert_eq!(scheme.terminal.background, (0, 0, 0));
+        assert_eq!(
+            scheme.terminal.foreground,
+            (0xf8, 0xf8, 0xf2),
+            "o resto é do tema"
+        );
+        assert!(config.overrides_theme());
+
+        let erro = Config::parse("theme = \"Nada\"").unwrap_err();
+        assert!(erro.contains("tema desconhecido \"Nada\""), "{erro}");
+        assert!(erro.contains("Dracula"), "{erro}");
+    }
+
+    #[test]
+    fn gravar_o_tema_mantem_o_resto() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sub").join("config.toml");
+        save_theme(&path, "Dracula").unwrap();
+        assert_eq!(
+            Config::load(&path).unwrap().theme.as_deref(),
+            Some("Dracula")
+        );
+
+        let original =
+            "# meu shell\nshell = \"cmd.exe\"\ntheme = \"Nemux\"\n\n[font]\nsize = 12 # pequeno\n";
+        std::fs::write(&path, original).unwrap();
+        save_theme(&path, "Tokyo Night").unwrap();
+        let texto = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(texto, original.replace("\"Nemux\"", "\"Tokyo Night\""));
     }
 
     #[test]

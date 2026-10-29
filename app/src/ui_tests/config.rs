@@ -9,13 +9,13 @@ use super::{abrir, achar, capturar, cmd, esperar, esperar_texto};
 use crate::{AppWindow, Controllers, Theme};
 
 /// Liga os controllers de `app` lendo a configuração `texto` (num arquivo temporário).
-fn ligar_com_config(app: &AppWindow, dir: &Path, texto: &str) -> Controllers {
+pub fn ligar_com_config(app: &AppWindow, dir: &Path, texto: &str) -> Controllers {
     let config = dir.join("config.toml");
     std::fs::write(&config, texto).unwrap();
     crate::init_controllers_with(app, dir.join("memoria.db"), Some(&config))
 }
 
-fn abrir_com_config(dir: &Path, texto: &str) -> (AppWindow, Controllers) {
+pub fn abrir_com_config(dir: &Path, texto: &str) -> (AppWindow, Controllers) {
     let app = abrir();
     let c = ligar_com_config(&app, dir, texto);
     (app, c)

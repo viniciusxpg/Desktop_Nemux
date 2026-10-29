@@ -44,6 +44,9 @@ Aba 3: claude ─┘                     ▲
   salvar, buscar e apagar memórias.
 - **Painel de memória**: veja, busque, filtre por projeto e apague o que o Claude
   salvou. A lista atualiza sozinha quando alguma sessão grava algo novo.
+- **Temas**: o botão **Temas** na barra de abas troca as cores na hora (Nemux,
+  One Half Dark, Dracula, Solarized Dark, Gruvbox Dark, Tokyo Night e Rosé Pine),
+  e a escolha fica salva para a próxima vez.
 
 ## Requisitos
 
@@ -120,12 +123,17 @@ cópias da mesma conversa.
 ## Configuração
 
 Shell, fonte e cores ficam em `%APPDATA%\nemux\config.toml`. O arquivo não
-existe até você criá-lo, e tudo nele é opcional: o que faltar fica com o padrão.
-Ele é lido ao abrir o app; depois de editar, feche e abra o Nemux de novo.
+existe até você criá-lo (ou escolher um tema pelo botão **Temas**, que o cria), e
+tudo nele é opcional: o que faltar fica com o padrão. Ele é lido ao abrir o app;
+depois de editar à mão, feche e abra o Nemux de novo.
 
 ```toml
 # Linha de comando de cada aba e painel novo.
 shell = "pwsh.exe -NoLogo"
+
+# Um dos temas prontos; o botão "Temas" grava esta linha. As cores de [colors]
+# e [app] abaixo ficam por cima das do tema: use-as só para ajustar uma ou outra.
+theme = "Nemux"
 
 [font]
 family = "Cascadia Mono"   # ou uma Nerd Font, para os ícones do oh-my-posh/Starship
@@ -152,8 +160,9 @@ muted = "#8a8a8a"          # textos secundários e abas inativas
 divider = "#3a3a3a"        # espaço entre painéis
 ```
 
-Os valores acima são os padrões, exceto `shell` e `font.family` (o padrão é
-`powershell.exe -NoLogo` e Consolas 14). Se o arquivo tiver um erro (uma cor mal
+Os valores acima são os padrões (as cores são as do tema Nemux), exceto `shell` e
+`font.family` (o padrão é `powershell.exe -NoLogo` e Consolas 14). As cores de
+cada tema estão em [`app/src/themes.toml`](app/src/themes.toml). Se o arquivo tiver um erro (uma cor mal
 escrita, uma chave desconhecida), o Nemux abre com o padrão e mostra o erro numa
 faixa abaixo das abas.
 

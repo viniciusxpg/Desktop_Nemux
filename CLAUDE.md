@@ -32,6 +32,10 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     global `Theme` (por isso as propriedades dele são `in-out`); as do terminal
     vão para `terminal::Colors`, usado no `snapshot()`. Lido só ao abrir; um
     arquivo com erro vira a configuração padrão e um aviso (`config-error`).
+    As cores partem de um tema pronto (`src/themes.toml`, embutido; o primeiro é
+    o padrão e tem de bater com `Colors::default()`), e `[colors]`/`[app]` ficam
+    por cima (`Scheme`). A lista "Temas" (`ui/theme-picker.slint`) aplica na hora
+    e grava `theme = "..."` com `toml_edit`, sem mexer no resto do arquivo.
   - `src/main.rs`: `init_controllers`, que liga os callbacks da interface ao `App`.
   - `ui/app-window.slint` (janela, abas, área dos painéis), `ui/terminal-pane.slint`
     (um painel: grade, seleção, cursor, mouse), `ui/memory-panel.slint`,

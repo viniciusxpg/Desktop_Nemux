@@ -2934,6 +2934,7 @@ dependencies = [
  "slint-build",
  "tempfile",
  "toml",
+ "toml_edit",
  "vt100",
  "winresource",
 ]

@@ -86,15 +86,27 @@ pub fn init_controllers(ui: &AppWindow) -> Controllers {
 /// Registra os callbacks da interface. Não abre nenhuma aba, e o banco de memória só é
 /// aberto quando o painel é usado (os testes de UI passam um banco temporário). Sem
 /// `config`, usa a configuração padrão; um arquivo com erro também, com um aviso na janela.
-pub fn init_controllers_with(ui: &AppWindow, db: PathBuf, config: Option<&Path>) -> Controllers {
-    let config = match config.map(Config::load).transpose() {
+pub fn init_controllers_with(
+    ui: &AppWindow,
+    db: PathBuf,
+    config_path: Option<&Path>,
+) -> Controllers {
+    let config = match config_path.map(Config::load).transpose() {
         Ok(config) => config.unwrap_or_default(),
         Err(e) => {
-            ui.set_config_error(e.into());
+            ui.set_config_error(format!("Configuração ignorada: {e}").into());
             Config::default()
         }
     };
     config.apply_theme(ui);
+    ui.set_themes(ModelRc::new(VecModel::from(config::theme_items())));
+    ui.set_theme_index(config.theme_index() as i32);
+    if config.overrides_theme() {
+        ui.set_themes_note(
+            "Algumas cores vêm de [colors] ou [app] no config.toml e ficam por cima do tema."
+                .into(),
+        );
+    }
     ui.on_config_error_dismissed({
         let weak = ui.as_weak();
         move || {
@@ -115,8 +127,36 @@ pub fn init_controllers_with(ui: &AppWindow, db: PathBuf, config: Option<&Path>)
     ui.set_dividers(ModelRc::from(dividers_model.clone()));
     let mut app = App::new(tx, metrics(ui), panes_model, tabs_model, dividers_model);
     app.colors = config.terminal_colors();
-    app.shell = Box::new(move || app::shell_command(config.shell.as_deref()));
+    let shell = config.shell.clone();
+    app.shell = Box::new(move || app::shell_command(shell.as_deref()));
     let app = Rc::new(RefCell::new(app));
+
+    // Escolher um tema aplica na hora a todos os painéis e grava no config.toml.
+    ui.on_theme_chosen({
+        let (app, weak) = (app.clone(), ui.as_weak());
+        let config = RefCell::new(config);
+        let config_path = config_path.map(Path::to_path_buf);
+        move |i| {
+            let (Some(ui), Some(preset)) = (weak.upgrade(), config::presets().get(i as usize))
+            else {
+                return;
+            };
+            let mut config = config.borrow_mut();
+            config.theme = Some(preset.name.clone());
+            config.apply_theme(&ui);
+            ui.set_theme_index(i);
+            {
+                let mut app = app.borrow_mut();
+                app.colors = config.terminal_colors();
+                app.render(&ui);
+            }
+            if let Some(path) = &config_path
+                && let Err(e) = config::save_theme(path, &preset.name)
+            {
+                ui.set_config_error(format!("Não foi possível gravar o tema: {e}").into());
+            }
+        }
+    });
 
     let weak = ui.as_weak();
     let on_change = {

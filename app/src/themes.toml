@@ -1,0 +1,123 @@
+# Temas prontos do Nemux (botão "Temas" ou `theme = "<nome>"` no config.toml).
+# Cada tema define todas as cores; o primeiro é o padrão. As paletas seguem os
+# esquemas originais, na ordem preto, vermelho, verde, amarelo, azul, magenta,
+# ciano, branco e as 8 versões claras.
+
+[[theme]]
+name = "Nemux"
+[theme.colors]
+foreground = "#cccccc"
+background = "#1e1e1e"
+selection = "#3b78ff66"
+palette = [
+  "#0c0c0c", "#c50f1f", "#13a10e", "#c19c00", "#0037da", "#881798", "#3a96dd", "#cccccc",
+  "#767676", "#e74856", "#16c60c", "#f9f1a5", "#3b78ff", "#b4009e", "#61d6d6", "#f2f2f2",
+]
+[theme.app]
+tab_bar = "#2b2b2b"
+tab_hover = "#383838"
+accent = "#3b78ff"
+muted = "#8a8a8a"
+divider = "#3a3a3a"
+
+[[theme]]
+name = "One Half Dark"
+[theme.colors]
+foreground = "#dcdfe4"
+background = "#282c34"
+selection = "#61afef55"
+palette = [
+  "#282c34", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#c678dd", "#56b6c2", "#dcdfe4",
+  "#5a6374", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#c678dd", "#56b6c2", "#dcdfe4",
+]
+[theme.app]
+tab_bar = "#21252b"
+tab_hover = "#2c313a"
+accent = "#61afef"
+muted = "#7f848e"
+divider = "#3b4048"
+
+[[theme]]
+name = "Dracula"
+[theme.colors]
+foreground = "#f8f8f2"
+background = "#282a36"
+selection = "#bd93f955"
+palette = [
+  "#21222c", "#ff5555", "#50fa7b", "#f1fa8c", "#bd93f9", "#ff79c6", "#8be9fd", "#f8f8f2",
+  "#6272a4", "#ff6e6e", "#69ff94", "#ffffa5", "#d6acff", "#ff92df", "#a4ffff", "#ffffff",
+]
+[theme.app]
+tab_bar = "#21222c"
+tab_hover = "#343746"
+accent = "#bd93f9"
+muted = "#6272a4"
+divider = "#44475a"
+
+[[theme]]
+name = "Solarized Dark"
+[theme.colors]
+foreground = "#839496"
+background = "#002b36"
+selection = "#268bd255"
+palette = [
+  "#002b36", "#dc322f", "#859900", "#b58900", "#268bd2", "#d33682", "#2aa198", "#eee8d5",
+  "#073642", "#cb4b16", "#586e75", "#657b83", "#839496", "#6c71c4", "#93a1a1", "#fdf6e3",
+]
+[theme.app]
+tab_bar = "#00212b"
+tab_hover = "#073642"
+accent = "#268bd2"
+muted = "#586e75"
+divider = "#0a4351"
+
+[[theme]]
+name = "Gruvbox Dark"
+[theme.colors]
+foreground = "#ebdbb2"
+background = "#282828"
+selection = "#fabd2f44"
+palette = [
+  "#282828", "#cc241d", "#98971a", "#d79921", "#458588", "#b16286", "#689d6a", "#a89984",
+  "#928374", "#fb4934", "#b8bb26", "#fabd2f", "#83a598", "#d3869b", "#8ec07c", "#ebdbb2",
+]
+[theme.app]
+tab_bar = "#1d2021"
+tab_hover = "#3c3836"
+accent = "#fabd2f"
+muted = "#928374"
+divider = "#504945"
+
+[[theme]]
+name = "Tokyo Night"
+[theme.colors]
+foreground = "#c0caf5"
+background = "#1a1b26"
+selection = "#7aa2f744"
+palette = [
+  "#15161e", "#f7768e", "#9ece6a", "#e0af68", "#7aa2f7", "#bb9af7", "#7dcfff", "#a9b1d6",
+  "#414868", "#f7768e", "#9ece6a", "#e0af68", "#7aa2f7", "#bb9af7", "#7dcfff", "#c0caf5",
+]
+[theme.app]
+tab_bar = "#16161e"
+tab_hover = "#292e42"
+accent = "#7aa2f7"
+muted = "#565f89"
+divider = "#292e42"
+
+[[theme]]
+name = "Rosé Pine"
+[theme.colors]
+foreground = "#e0def4"
+background = "#191724"
+selection = "#c4a7e755"
+palette = [
+  "#26233a", "#eb6f92", "#31748f", "#f6c177", "#9ccfd8", "#c4a7e7", "#ebbcba", "#e0def4",
+  "#6e6a86", "#eb6f92", "#31748f", "#f6c177", "#9ccfd8", "#c4a7e7", "#ebbcba", "#e0def4",
+]
+[theme.app]
+tab_bar = "#1f1d2e"
+tab_hover = "#26233a"
+accent = "#c4a7e7"
+muted = "#6e6a86"
+divider = "#403d52"

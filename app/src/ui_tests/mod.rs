@@ -12,6 +12,7 @@ mod paineis;
 mod rolagem;
 mod selecao;
 mod sessoes;
+mod temas;
 mod terminal;
 
 use std::fs::{self, File};

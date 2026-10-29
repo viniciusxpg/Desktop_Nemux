@@ -3,8 +3,9 @@ import { Theme } from "theme.slint";
 import { MemoryPanel, MemoryEntry } from "memory-panel.slint";
 import { TerminalPane, PaneView, TermLine, TermRun, SelRect } from "terminal-pane.slint";
 import { SessionPicker, SessionItem } from "session-picker.slint";
+import { ThemePicker, ThemeItem } from "theme-picker.slint";
 
-export { MemoryEntry, PaneView, TermLine, TermRun, SelRect, SessionItem, Theme }
+export { MemoryEntry, PaneView, TermLine, TermRun, SelRect, SessionItem, ThemeItem, Theme }
 
 // Divisória entre painéis, na área dos painéis; `vertical` = painéis lado a lado.
 export struct DividerView {
@@ -139,7 +140,13 @@ export component AppWindow inherits Window {
     in-out property <string> sessions-query;
     in property <string> sessions-status;
 
-    // Erro ao ler a configuração; vazio quando não há.
+    // Lista de temas prontos; escolher aplica e grava no config.toml.
+    in-out property <bool> themes-open;
+    in property <[ThemeItem]> themes;
+    in property <int> theme-index;
+    in property <string> themes-note;
+
+    // Erro ao ler a configuração (ou ao gravar o tema); vazio quando não há.
     in property <string> config-error;
 
     // Tamanho de uma célula, medido com a própria fonte.
@@ -185,6 +192,7 @@ export component AppWindow inherits Window {
     callback sessions-filter();
     callback session-open(int);
     callback config-error-dismissed();
+    callback theme-chosen(int);
 
     // Os widgets (campo de busca, lista) seguem o tema escuro do terminal.
     init => {
@@ -206,6 +214,13 @@ export component AppWindow inherits Window {
             root.sessions-query = "";
             root.sessions-refresh();
         } else {
+            key-handler.focus();
+        }
+    }
+
+    public function toggle-themes() {
+        root.themes-open = !root.themes-open;
+        if !root.themes-open {
             key-handler.focus();
         }
     }
@@ -272,6 +287,25 @@ export component AppWindow inherits Window {
                 // Empurra os botões abaixo para a direita; as abas ficam perto do tamanho natural.
                 Rectangle {
                     horizontal-stretch: 1000;
+                }
+
+                themes-btn := Rectangle {
+                    width: 72px;
+                    accessible-role: button;
+                    accessible-label: "Temas";
+                    accessible-action-default => { root.toggle-themes(); }
+                    background: root.themes-open ? Theme.tab-active : (themes-touch.has-hover ? Theme.tab-hover : transparent);
+
+                    Text {
+                        text: "Temas";
+                        color: root.themes-open || themes-touch.has-hover ? Theme.foreground : Theme.muted;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    themes-touch := TouchArea {
+                        clicked => { root.toggle-themes(); }
+                    }
                 }
 
                 sessions-btn := Rectangle {
@@ -341,7 +375,7 @@ export component AppWindow inherits Window {
                 padding-right: 4px;
 
                 Text {
-                    text: "Configuração ignorada: " + root.config-error;
+                    text: root.config-error;
                     color: Theme.foreground;
                     vertical-alignment: center;
                     overflow: elide;
@@ -455,6 +489,20 @@ export component AppWindow inherits Window {
                 close => { root.toggle-memory(); }
             }
         }
+    }
+
+    if root.themes-open: theme-picker := ThemePicker {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        themes: root.themes;
+        current: root.theme-index;
+        note: root.themes-note;
+        anchor-right: themes-btn.x + themes-btn.width;
+        anchor-top: tab-bar.height + 2px;
+        choose(i) => { root.theme-chosen(i); }
+        close => { root.toggle-themes(); }
     }
 
     if root.sessions-open: session-picker := SessionPicker {
