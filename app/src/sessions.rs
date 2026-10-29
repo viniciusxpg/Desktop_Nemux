@@ -194,7 +194,15 @@ fn valid_id(id: &str) -> bool {
 /// Painel que retoma a sessão: um PowerShell na pasta dela rodando `claude --resume`,
 /// que continua aberto quando o Claude termina.
 pub fn resume_command(session: &Session) -> Option<CommandBuilder> {
-    if !valid_id(&session.id) || !session.is_available() {
+    if !session.is_available() {
+        return None;
+    }
+    resume_in(&session.id, session.cwd.as_ref()?)
+}
+
+/// `claude --resume <id>` num PowerShell na pasta `cwd`; `None` se o id não parece um id.
+pub fn resume_in(id: &str, cwd: &Path) -> Option<CommandBuilder> {
+    if !valid_id(id) {
         return None;
     }
     let mut cmd = CommandBuilder::new("powershell.exe");
@@ -202,9 +210,9 @@ pub fn resume_command(session: &Session) -> Option<CommandBuilder> {
         "-NoLogo",
         "-NoExit",
         "-Command",
-        &format!("claude --resume {}", session.id),
+        &format!("claude --resume {id}"),
     ]);
-    cmd.cwd(session.cwd.as_ref()?);
+    cmd.cwd(cwd);
     cmd.env("TERM_PROGRAM", "nemux");
     Some(cmd)
 }

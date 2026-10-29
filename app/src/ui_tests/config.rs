@@ -12,7 +12,7 @@ use crate::{AppWindow, Controllers, Theme};
 pub fn ligar_com_config(app: &AppWindow, dir: &Path, texto: &str) -> Controllers {
     let config = dir.join("config.toml");
     std::fs::write(&config, texto).unwrap();
-    crate::init_controllers_with(app, dir.join("memoria.db"), Some(&config))
+    crate::init_controllers_with(app, dir.join("memoria.db"), Some(&config), None)
 }
 
 pub fn abrir_com_config(dir: &Path, texto: &str) -> (AppWindow, Controllers) {

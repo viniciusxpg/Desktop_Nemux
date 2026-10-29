@@ -2,6 +2,7 @@
 
 use std::io::{Read, Write};
 use std::num::NonZeroU16;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -16,6 +17,8 @@ pub enum Event {
     Output,
     /// O programa definiu o título (OSC 0/2).
     Title(String),
+    /// O shell informou a pasta atual (OSC 7 ou OSC 9;9).
+    Cwd(PathBuf),
     /// O processo terminou.
     Exited,
 }
@@ -25,6 +28,7 @@ pub enum Event {
 pub struct Callbacks {
     replies: Vec<u8>,
     title: Option<String>,
+    cwd: Option<PathBuf>,
 }
 
 impl vt100::Callbacks for Callbacks {
@@ -55,6 +59,63 @@ impl vt100::Callbacks for Callbacks {
     fn set_window_title(&mut self, _: &mut vt100::Screen, title: &[u8]) {
         self.title = Some(String::from_utf8_lossy(title).into_owned());
     }
+
+    fn unhandled_osc(&mut self, _: &mut vt100::Screen, params: &[&[u8]]) {
+        if let Some(cwd) = osc_cwd(params) {
+            self.cwd = Some(cwd);
+        }
+    }
+}
+
+/// Pasta atual vinda do shell: `OSC 7 ; file://host/C:/pasta` (com `%xx`) ou
+/// `OSC 9 ; 9 ; "C:\pasta"` (o do Windows Terminal).
+fn osc_cwd(params: &[&[u8]]) -> Option<PathBuf> {
+    // O vt100 corta nos ';', que podem fazer parte do caminho: junta de volta.
+    let rest = |from: usize| {
+        params[from.min(params.len())..]
+            .iter()
+            .map(|p| String::from_utf8_lossy(p))
+            .collect::<Vec<_>>()
+            .join(";")
+    };
+    let path = match params {
+        [b"7", ..] => {
+            let url = rest(1);
+            let after_host = url.strip_prefix("file://")?;
+            let path = percent_decode(&after_host[after_host.find('/')?..]);
+            // "/C:/pasta" no Windows.
+            match path.as_bytes() {
+                [b'/', _, b':', ..] => path[1..].to_owned(),
+                _ => path,
+            }
+        }
+        [b"9", b"9", ..] => rest(2).trim_matches('"').to_owned(),
+        _ => return None,
+    };
+    (!path.is_empty()).then(|| PathBuf::from(path))
+}
+
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = bytes
+            .get(i + 1..i + 3)
+            .and_then(|h| std::str::from_utf8(h).ok())
+            .and_then(|h| u8::from_str_radix(h, 16).ok());
+        match (bytes[i], hex) {
+            (b'%', Some(b)) => {
+                out.push(b);
+                i += 3;
+            }
+            (b, _) => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 pub type Parser = vt100::Parser<Callbacks>;
@@ -102,11 +163,15 @@ impl Terminal {
                         Ok(0) | Err(_) => break,
                         Ok(n) => n,
                     };
-                    let (replies, title) = {
+                    let (replies, title, cwd) = {
                         let mut parser = parser.lock().unwrap();
                         parser.process(&buf[..n]);
                         let cb = parser.callbacks_mut();
-                        (std::mem::take(&mut cb.replies), cb.title.take())
+                        (
+                            std::mem::take(&mut cb.replies),
+                            cb.title.take(),
+                            cb.cwd.take(),
+                        )
                     };
                     if !replies.is_empty() {
                         let mut w = writer.lock().unwrap();
@@ -114,6 +179,9 @@ impl Terminal {
                     }
                     if let Some(title) = title {
                         on_event(Event::Title(title));
+                    }
+                    if let Some(cwd) = cwd {
+                        on_event(Event::Cwd(cwd));
                     }
                     on_event(Event::Output);
                 }
@@ -492,6 +560,29 @@ mod tests {
         let mut p = parser(5, 20);
         p.process(b"\r\nab\x1b[6n\x1b[c");
         assert_eq!(p.callbacks().replies, b"\x1b[2;3R\x1b[?1;2c");
+    }
+
+    #[test]
+    fn captures_cwd() {
+        let cwd = |seq: &[u8]| {
+            let mut p = parser(1, 10);
+            p.process(seq);
+            p.callbacks_mut().cwd.take()
+        };
+        assert_eq!(
+            cwd(b"\x1b]7;file://pc/C:/Users/Eu/meu%20proj;x\x07"),
+            Some(PathBuf::from("C:/Users/Eu/meu proj;x"))
+        );
+        assert_eq!(
+            cwd(b"\x1b]9;9;\"C:\\Users\\Eu\"\x1b\\"),
+            Some(PathBuf::from("C:\\Users\\Eu"))
+        );
+        assert_eq!(
+            cwd(b"\x1b]7;file:///home/eu\x07"),
+            Some(PathBuf::from("/home/eu"))
+        );
+        assert_eq!(cwd(b"\x1b]9;4;1;50\x07"), None, "OSC 9;4 é progresso");
+        assert_eq!(cwd(b"\x1b]1337;x\x07"), None);
     }
 
     #[test]

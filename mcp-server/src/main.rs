@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use nemux_memory::{Entry, Memory};
+use nemux_memory::{Entry, Memory, PaneSession};
 use rmcp::{
     ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -150,7 +150,42 @@ async fn main() -> anyhow::Result<()> {
     let memory = Memory::open(&path)?;
     eprintln!("nemux-mcp: usando {}", path.display());
 
-    let service = NemuxServer::new(memory).serve(stdio()).await?;
-    service.waiting().await?;
-    Ok(())
+    // Num painel do Nemux, diz ao app qual sessão do Claude roda ali, para ele
+    // poder retomá-la ao reabrir. O registro some quando o Claude fecha.
+    let pane = pane_session();
+    if let Some((pane, session)) = &pane
+        && let Err(e) = memory.add_pane_session(pane, session)
+    {
+        eprintln!("nemux-mcp: não foi possível registrar o painel: {e}");
+    }
+
+    let result = match NemuxServer::new(memory).serve(stdio()).await {
+        Ok(service) => service.waiting().await.map(|_| ()).map_err(Into::into),
+        Err(e) => Err(e.into()),
+    };
+    if let Some((pane, session)) = &pane
+        && let Ok(memory) = Memory::open(&path)
+    {
+        let _ = memory.remove_pane_session(pane, &session.session_id);
+    }
+    result
+}
+
+/// Painel do Nemux (`NEMUX_PANE`) e sessão do Claude (`CLAUDE_CODE_SESSION_ID`, que o
+/// Claude Code passa aos servidores MCP), se este servidor roda dentro de um.
+fn pane_session() -> Option<(String, PaneSession)> {
+    let pane = std::env::var("NEMUX_PANE").ok()?;
+    let session_id = std::env::var("CLAUDE_CODE_SESSION_ID").ok()?;
+    let cwd = std::env::current_dir()
+        .ok()
+        .map(|d| d.to_string_lossy().into_owned());
+    Some((
+        pane,
+        PaneSession {
+            session_id,
+            cwd,
+            // Este servidor vive enquanto a sessão estiver aberta.
+            pid: Some(std::process::id()),
+        },
+    ))
 }

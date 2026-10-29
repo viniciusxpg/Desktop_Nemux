@@ -1,6 +1,7 @@
 //! Estado do app: abas, painéis (cada um com seu terminal), seleção e área de transferência.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc;
 
@@ -11,6 +12,7 @@ use crate::keys::{self, Mods};
 use crate::layout::{self, Direction, Node, PaneId, Rect, Split};
 use crate::selection::Selection;
 use crate::terminal::{Colors, Event, Rgb, Run, Terminal};
+use crate::workspace::{self, Resume, SavedNode, Workspace};
 use crate::{AppWindow, DividerView, PaneView, SelRect, TabInfo, TermLine, TermRun};
 
 /// Espaço entre painéis vizinhos; nele aparece a cor de divisória do fundo.
@@ -21,6 +23,11 @@ const MIN_ROWS: u16 = 4;
 
 pub struct Pane {
     pub title: String,
+    /// Identifica o painel fora do app (`NEMUX_PANE`): o `nemux-mcp` de um Claude
+    /// aberto nele registra a sessão com esse nome.
+    pub token: String,
+    /// Pasta atual: a de quando abriu, até o shell informar outra (OSC 7 ou 9;9).
+    pub cwd: Option<PathBuf>,
     pub term: Terminal,
     pub rows: u16,
     pub cols: u16,
@@ -57,6 +64,8 @@ pub struct App {
     events: mpsc::Sender<(PaneId, Event)>,
     /// Comando de cada novo painel (os testes trocam por `cmd.exe`).
     pub shell: Box<dyn Fn() -> CommandBuilder>,
+    /// Comando que retoma uma sessão do Claude ao restaurar as abas (os testes trocam).
+    pub resume: Box<Resume>,
     /// Cores do terminal (da configuração).
     pub colors: Colors,
     clipboard: Option<arboard::Clipboard>,
@@ -91,6 +100,7 @@ impl App {
             metrics,
             events,
             shell: Box::new(|| shell_command(None)),
+            resume: Box::new(crate::sessions::resume_in),
             colors: Colors::default(),
             clipboard: None,
             panes_model,
@@ -138,10 +148,13 @@ impl App {
             .unwrap_or_default()
     }
 
-    fn spawn_pane(&mut self, cmd: CommandBuilder, rect: Rect) -> Option<PaneId> {
+    fn spawn_pane(&mut self, mut cmd: CommandBuilder, rect: Rect) -> Option<PaneId> {
         let (cols, rows) = self.grid_size(rect);
         let id = self.next_id;
         self.next_id += 1;
+        let token = pane_token(id);
+        cmd.env("NEMUX_PANE", &token);
+        let cwd = cmd.get_cwd().map(PathBuf::from);
         let events = self.events.clone();
         match Terminal::spawn(cmd, rows, cols, move |e| {
             let _ = events.send((id, e));
@@ -151,6 +164,8 @@ impl App {
                     id,
                     Pane {
                         title: format!("Terminal {}", id + 1),
+                        token,
+                        cwd,
                         term,
                         rows,
                         cols,
@@ -179,6 +194,45 @@ impl App {
                 active: id,
             });
             self.active = self.tabs.len() - 1;
+        }
+    }
+
+    /// Reabre as abas salvas (cada painel na sua pasta, com o Claude retomado);
+    /// devolve quantas abriram. Painéis que não abrem somem da árvore.
+    pub fn restore(&mut self, saved: &Workspace) -> usize {
+        for tab in &saved.tabs {
+            let Some(layout) = self.restore_node(&tab.layout) else {
+                continue;
+            };
+            let leaves = layout.leaves();
+            let active = leaves.get(tab.active).unwrap_or(&leaves[0]);
+            self.tabs.push(Tab {
+                active: *active,
+                layout,
+            });
+        }
+        self.active = saved.active_tab.min(self.tabs.len().saturating_sub(1));
+        self.relayout();
+        self.tabs.len()
+    }
+
+    fn restore_node(&mut self, node: &SavedNode) -> Option<Node> {
+        match node {
+            SavedNode::Pane(pane) => {
+                let cmd = workspace::command_for(pane, &*self.shell, &*self.resume);
+                self.spawn_pane(cmd, self.area()).map(Node::Leaf)
+            }
+            SavedNode::Split { down, ratio, a, b } => {
+                match (self.restore_node(a), self.restore_node(b)) {
+                    (Some(a), Some(b)) => Some(Node::Split {
+                        split: if *down { Split::Down } else { Split::Right },
+                        ratio: ratio.clamp(0.05, 0.95),
+                        a: Box::new(a),
+                        b: Box::new(b),
+                    }),
+                    (a, b) => a.or(b),
+                }
+            }
         }
     }
 
@@ -369,6 +423,11 @@ impl App {
                 }
             }
             Event::Title(_) => {}
+            Event::Cwd(cwd) => {
+                if let Some(p) = self.panes.get_mut(&pane) {
+                    p.cwd = Some(cwd.clone());
+                }
+            }
             Event::Exited => self.close_pane(pane),
         }
     }
@@ -709,6 +768,14 @@ impl App {
             offset: snap.offset as i32,
         })
     }
+}
+
+/// Único entre os painéis de todas as execuções do app: processo, painel e instante.
+fn pane_token(id: PaneId) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    format!("{}-{id}-{nanos:x}", std::process::id())
 }
 
 /// Troca o conteúdo de `model` por `rows` mexendo só nas linhas que mudaram, para a

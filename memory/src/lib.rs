@@ -20,6 +20,16 @@ pub struct Memory {
     conn: Connection,
 }
 
+/// Uma sessão do Claude Code rodando num painel do Nemux (gravada pelo `nemux-mcp`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PaneSession {
+    pub session_id: String,
+    /// Pasta onde o Claude roda.
+    pub cwd: Option<String>,
+    /// Processo do `nemux-mcp` dessa sessão: enquanto ele existe, a sessão está aberta.
+    pub pid: Option<u32>,
+}
+
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS memories (
     id         INTEGER PRIMARY KEY,
@@ -39,6 +49,18 @@ END;
 CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
     INSERT INTO memories_fts(memories_fts, rowid, content) VALUES ('delete', old.id, old.content);
 END;
+
+-- Sessões do Claude abertas em cada painel do Nemux. Um painel pode ter várias
+-- (um Claude que roda outro), e a mais antiga é a principal.
+CREATE TABLE IF NOT EXISTS claude_panes (
+    id         INTEGER PRIMARY KEY,
+    pane       TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    cwd        TEXT,
+    pid        INTEGER,
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (pane, session_id)
+);
 ";
 
 /// Caminho padrão do banco: `%APPDATA%\nemux\nemux.db` no Windows.
@@ -133,6 +155,44 @@ impl Memory {
         rows.collect()
     }
 
+    /// Registra que a sessão `session.session_id` do Claude está rodando no painel `pane`.
+    /// Também apaga registros com mais de uma semana, de sessões que não se desregistraram.
+    pub fn add_pane_session(&self, pane: &str, session: &PaneSession) -> Result<(), Error> {
+        self.conn.execute(
+            "DELETE FROM claude_panes WHERE started_at < datetime('now', '-7 days')",
+            [],
+        )?;
+        self.conn.execute(
+            "INSERT INTO claude_panes (pane, session_id, cwd, pid) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT (pane, session_id) DO UPDATE SET cwd = excluded.cwd, pid = excluded.pid",
+            params![pane, session.session_id, session.cwd, session.pid],
+        )?;
+        Ok(())
+    }
+
+    pub fn remove_pane_session(&self, pane: &str, session_id: &str) -> Result<(), Error> {
+        self.conn.execute(
+            "DELETE FROM claude_panes WHERE pane = ?1 AND session_id = ?2",
+            params![pane, session_id],
+        )?;
+        Ok(())
+    }
+
+    /// Sessões registradas no painel, da mais antiga para a mais nova.
+    pub fn pane_sessions(&self, pane: &str) -> Result<Vec<PaneSession>, Error> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT session_id, cwd, pid FROM claude_panes WHERE pane = ?1 ORDER BY id")?;
+        let rows = stmt.query_map([pane], |row| {
+            Ok(PaneSession {
+                session_id: row.get(0)?,
+                cwd: row.get(1)?,
+                pid: row.get(2)?,
+            })
+        })?;
+        rows.collect()
+    }
+
     /// Muda sempre que outra conexão grava no banco; serve para saber quando recarregar.
     pub fn data_version(&self) -> Result<i64, Error> {
         self.conn
@@ -162,6 +222,35 @@ fn row_to_entry(row: &rusqlite::Row) -> rusqlite::Result<Entry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pane_sessions_in_order() {
+        let mem = Memory::open_in_memory().unwrap();
+        let session = |id: &str| PaneSession {
+            session_id: id.into(),
+            cwd: Some("C:/proj".into()),
+            pid: Some(42),
+        };
+        mem.add_pane_session("p1", &session("a")).unwrap();
+        mem.add_pane_session("p1", &session("b")).unwrap();
+        mem.add_pane_session("p2", &session("c")).unwrap();
+        // Registrar de novo (o MCP reconectado) não duplica nem muda a ordem.
+        mem.add_pane_session("p1", &session("a")).unwrap();
+        let ids = |pane| -> Vec<String> {
+            mem.pane_sessions(pane)
+                .unwrap()
+                .into_iter()
+                .map(|s| s.session_id)
+                .collect()
+        };
+        assert_eq!(ids("p1"), ["a", "b"]);
+        assert_eq!(mem.pane_sessions("p2").unwrap(), [session("c")]);
+
+        mem.remove_pane_session("p1", "a").unwrap();
+        mem.remove_pane_session("p1", "c").unwrap();
+        assert_eq!(ids("p1"), ["b"]);
+        assert!(ids("nenhum").is_empty());
+    }
 
     #[test]
     fn save_and_search() {

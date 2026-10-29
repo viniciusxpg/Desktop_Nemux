@@ -18,6 +18,8 @@ pub struct Config {
     pub shell: Option<String>,
     /// Nome de um dos temas prontos (`themes.toml`); sem ele, o primeiro.
     pub theme: Option<String>,
+    /// Reabrir as abas (e as sessões do Claude) da última vez. Padrão: sim.
+    pub restore: Option<bool>,
     pub font: Font,
     /// Cores do terminal, por cima das do tema.
     pub colors: TermColors,

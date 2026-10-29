@@ -21,6 +21,7 @@ vt100 = "0.18.1"
 [target.'cfg(windows)'.dependencies]
 # Carrega o ConPTY embutido pelo caminho completo (src/conpty.rs).
 libloading = "0.8"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
 
 [build-dependencies]
 ico = "0.6.0"

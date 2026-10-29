@@ -47,6 +47,33 @@ Aba 3: claude ─┘                     ▲
 - **Temas**: o botão **Temas** na barra de abas troca as cores na hora (Nemux,
   One Half Dark, Dracula, Solarized Dark, Gruvbox Dark, Tokyo Night e Rosé Pine),
   e a escolha fica salva para a próxima vez.
+- **Abas restauradas**: ao fechar e abrir o Nemux, as abas voltam como estavam:
+  as divisões e seus tamanhos, a aba e o painel com o foco, a pasta de cada painel
+  e as **sessões do Claude**, retomadas com `claude --resume` no painel onde
+  estavam (isso precisa da memória ligada; veja abaixo).
+
+### Como as sessões do Claude voltam
+
+Cada painel recebe a variável `NEMUX_PANE`. Quando um Claude abre num painel, o
+`nemux-mcp` dele recebe essa variável e o id da sessão (`CLAUDE_CODE_SESSION_ID`)
+e anota no banco "a sessão X roda no painel Y"; a anotação some quando o Claude
+fecha. Ao fechar o Nemux (e a cada 30 segundos), o app grava as abas em
+`%APPDATA%\nemux\session.json` com a sessão de cada painel.
+
+- Sem o servidor MCP registrado, os painéis voltam como shells, sem o Claude.
+- Depois de um `/clear`, o Claude começa outra sessão, mas o servidor MCP continua
+  com o id antigo: o painel volta com a conversa de antes do `/clear`.
+- A pasta de um shell comum só acompanha os `cd` se o prompt avisar o terminal
+  (OSC 7 ou OSC 9;9, como no Windows Terminal). Sem isso, o painel volta na pasta
+  em que foi aberto. Para o PowerShell, ponha no seu `$PROFILE`:
+
+  ```powershell
+  function prompt {
+      $loc = $executionContext.SessionState.Path.CurrentLocation
+      $osc = if ($loc.Provider.Name -eq "FileSystem") { "$([char]27)]9;9;`"$($loc.ProviderPath)`"$([char]27)\" }
+      "$osc" + "PS $loc$('>' * ($nestedPromptLevel + 1)) "
+  }
+  ```
 
 ## Requisitos
 
@@ -134,6 +161,9 @@ shell = "pwsh.exe -NoLogo"
 # Um dos temas prontos; o botão "Temas" grava esta linha. As cores de [colors]
 # e [app] abaixo ficam por cima das do tema: use-as só para ajustar uma ou outra.
 theme = "Nemux"
+
+# Reabrir as abas (e as sessões do Claude) da última vez.
+restore = true
 
 [font]
 family = "Cascadia Mono"   # ou uma Nerd Font, para os ícones do oh-my-posh/Starship

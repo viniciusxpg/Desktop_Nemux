@@ -9,6 +9,10 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
   `%APPDATA%\nemux\nemux.db`, trocável pela variável `NEMUX_DB`.
 - `mcp-server/` (`nemux-mcp`): servidor MCP via stdio (crate `rmcp`) com as
   ferramentas `memory_save`, `memory_search`, `memory_recent`, `memory_delete`.
+  Ao iniciar dentro de um painel do Nemux (`NEMUX_PANE` no ambiente), registra
+  na tabela `claude_panes` a sessão do Claude (`CLAUDE_CODE_SESSION_ID`, que o
+  Claude Code passa aos servidores MCP), a pasta e o próprio PID; ao terminar,
+  apaga o registro.
 - `app/` (`nemux-app`): interface Slint.
   - `src/app.rs`: estado do app (`App`): abas, painéis (cada um com seu
     `Terminal`), seleção, área de transferência, atalhos e `render()`.
@@ -36,6 +40,13 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     o padrão e tem de bater com `Colors::default()`), e `[colors]`/`[app]` ficam
     por cima (`Scheme`). A lista "Temas" (`ui/theme-picker.slint`) aplica na hora
     e grava `theme = "..."` com `toml_edit`, sem mexer no resto do arquivo.
+  - `src/workspace.rs`: abas entre execuções (`%APPDATA%\nemux\session.json`):
+    árvore de painéis, pasta de cada um (a de quando abriu, ou a que o shell
+    informou por OSC 7/9;9) e a sessão do Claude dele. Grava ao fechar a janela
+    (antes de encerrar os terminais) e a cada 30 s; `restore = false` desliga.
+    A sessão de um painel é a mais antiga em `claude_panes` cujo `nemux-mcp`
+    ainda roda: um `claude -p` rodado de dentro do Claude herda o `NEMUX_PANE`
+    e também se registra. Nos testes, `App::resume` troca o `claude --resume`.
   - `src/main.rs`: `init_controllers`, que liga os callbacks da interface ao `App`.
   - `ui/app-window.slint` (janela, abas, área dos painéis), `ui/terminal-pane.slint`
     (um painel: grade, seleção, cursor, mouse), `ui/memory-panel.slint`,

@@ -14,6 +14,7 @@ mod sessions;
 mod terminal;
 #[cfg(test)]
 mod ui_tests;
+mod workspace;
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -28,7 +29,9 @@ use config::Config;
 use keys::Mods;
 use layout::{PaneId, Split};
 use memory_view::MemoryView;
+use nemux_memory::Memory;
 use session_view::SessionsView;
+use workspace::Workspace;
 
 slint::include_modules!();
 
@@ -38,8 +41,12 @@ pub struct Controllers {
     // Lido pelos testes de UI, que trocam a pasta e o comando das sessões.
     #[cfg_attr(not(test), allow(dead_code))]
     sessions: Rc<RefCell<SessionsView>>,
+    /// Onde as abas são gravadas; `None` não grava nem restaura.
+    workspace: Option<PathBuf>,
+    db: PathBuf,
     _timer: slint::Timer,
     _memory_timer: slint::Timer,
+    _workspace_timer: slint::Timer,
 }
 
 impl Controllers {
@@ -48,14 +55,47 @@ impl Controllers {
         app.new_tab();
         app.render(ui);
     }
+
+    /// Reabre as abas da última vez; sem elas, abre uma aba nova.
+    pub fn restore_or_open_tab(&self, ui: &AppWindow) {
+        let saved = self.workspace.as_deref().and_then(Workspace::load);
+        let mut app = self.app.borrow_mut();
+        if saved.is_none_or(|saved| app.restore(&saved) == 0) {
+            app.new_tab();
+        }
+        app.render(ui);
+    }
+
+    /// Grava as abas, com a sessão do Claude de cada painel.
+    pub fn save_workspace(&self) {
+        save_workspace(&self.app.borrow(), self.workspace.as_deref(), &self.db);
+    }
+}
+
+fn save_workspace(app: &App, path: Option<&Path>, db: &Path) {
+    let Some(path) = path else {
+        return;
+    };
+    let memory = Memory::open(db)
+        .inspect_err(|e| eprintln!("nemux: não foi possível abrir {}: {e}", db.display()))
+        .ok();
+    let saved = Workspace::capture(app, |pane| {
+        workspace::claude_session(memory.as_ref()?, pane)
+    });
+    if let Err(e) = saved.save(path) {
+        eprintln!("nemux: não foi possível gravar {}: {e}", path.display());
+    }
 }
 
 fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
     let controllers = init_controllers(&ui);
-    controllers.open_tab(&ui);
+    controllers.restore_or_open_tab(&ui);
     ui.invoke_focus_terminal();
-    ui.run()
+    let result = ui.run();
+    // Com a janela fechada, mas antes de encerrar os terminais (e os Claudes neles).
+    controllers.save_workspace();
+    result
 }
 
 /// Medidas atuais da área dos painéis, lidas da interface.
@@ -74,22 +114,26 @@ fn pane_id(id: i32) -> PaneId {
     id.max(0) as PaneId
 }
 
-/// Registra os callbacks da interface com o banco de memória e a configuração padrão.
+/// Registra os callbacks da interface com o banco de memória, a configuração e as
+/// abas salvas padrão.
 pub fn init_controllers(ui: &AppWindow) -> Controllers {
     init_controllers_with(
         ui,
         nemux_memory::default_path(),
         Some(&config::default_path()),
+        Some(&workspace::default_path()),
     )
 }
 
 /// Registra os callbacks da interface. Não abre nenhuma aba, e o banco de memória só é
 /// aberto quando o painel é usado (os testes de UI passam um banco temporário). Sem
 /// `config`, usa a configuração padrão; um arquivo com erro também, com um aviso na janela.
+/// Sem `workspace`, as abas não são gravadas nem restauradas.
 pub fn init_controllers_with(
     ui: &AppWindow,
     db: PathBuf,
     config_path: Option<&Path>,
+    workspace: Option<&Path>,
 ) -> Controllers {
     let config = match config_path.map(Config::load).transpose() {
         Ok(config) => config.unwrap_or_default(),
@@ -99,6 +143,7 @@ pub fn init_controllers_with(
         }
     };
     config.apply_theme(ui);
+    let config_restore = config.restore.unwrap_or(true);
     ui.set_themes(ModelRc::new(VecModel::from(config::theme_items())));
     ui.set_theme_index(config.theme_index() as i32);
     if config.overrides_theme() {
@@ -276,7 +321,7 @@ pub fn init_controllers_with(
         }
     });
 
-    let memory = Rc::new(RefCell::new(MemoryView::new(db)));
+    let memory = Rc::new(RefCell::new(MemoryView::new(db.clone())));
     let weak = ui.as_weak();
     ui.on_memory_refresh({
         let (memory, weak) = (memory.clone(), weak.clone());
@@ -340,10 +385,21 @@ pub fn init_controllers_with(
         }
     });
 
+    // Grava as abas de tempos em tempos, para não perdê-las se o app não fechar direito.
+    let workspace = workspace.filter(|_| config_restore).map(Path::to_path_buf);
+    let workspace_timer = slint::Timer::default();
+    workspace_timer.start(slint::TimerMode::Repeated, Duration::from_secs(30), {
+        let (app, workspace, db) = (app.clone(), workspace.clone(), db.clone());
+        move || save_workspace(&app.borrow(), workspace.as_deref(), &db)
+    });
+
     Controllers {
         app,
         sessions,
+        workspace,
+        db,
         _timer: timer,
         _memory_timer: memory_timer,
+        _workspace_timer: workspace_timer,
     }
 }
