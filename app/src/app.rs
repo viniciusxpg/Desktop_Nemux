@@ -10,7 +10,7 @@ use slint::{Model, ModelRc, VecModel};
 use crate::keys::{self, Mods};
 use crate::layout::{self, Direction, Node, PaneId, Rect, Split};
 use crate::selection::Selection;
-use crate::terminal::{Event, Rgb, Run, Terminal};
+use crate::terminal::{Colors, Event, Rgb, Run, Terminal};
 use crate::{AppWindow, DividerView, PaneView, SelRect, TabInfo, TermLine, TermRun};
 
 /// Espaço entre painéis vizinhos; nele aparece a cor de divisória do fundo.
@@ -57,6 +57,8 @@ pub struct App {
     events: mpsc::Sender<(PaneId, Event)>,
     /// Comando de cada novo painel (os testes trocam por `cmd.exe`).
     pub shell: Box<dyn Fn() -> CommandBuilder>,
+    /// Cores do terminal (da configuração).
+    pub colors: Colors,
     clipboard: Option<arboard::Clipboard>,
     panes_model: Rc<VecModel<PaneView>>,
     /// Fixo entre quadros: recriar a lista entre o apertar e o soltar do botão perderia o clique.
@@ -88,7 +90,8 @@ impl App {
             next_id: 0,
             metrics,
             events,
-            shell: Box::new(shell_command),
+            shell: Box::new(|| shell_command(None)),
+            colors: Colors::default(),
             clipboard: None,
             panes_model,
             tabs_model,
@@ -664,7 +667,7 @@ impl App {
     fn pane_view(&mut self, id: PaneId, rect: Rect, active: bool) -> Option<PaneView> {
         let selection = self.selection.filter(|(p, _)| *p == id).map(|(_, s)| s);
         let pane = self.panes.get_mut(&id)?;
-        let snap = pane.term.snapshot();
+        let snap = pane.term.snapshot(&self.colors);
 
         let model = &pane.lines_model;
         if model.row_count() != snap.lines.len() {
@@ -722,9 +725,13 @@ fn update_model<T: Clone + PartialEq + 'static>(model: &VecModel<T>, rows: Vec<T
     }
 }
 
-/// Shell de cada painel: `NEMUX_SHELL` (ex.: `cmd.exe`) ou PowerShell.
-pub fn shell_command() -> CommandBuilder {
-    let shell = std::env::var("NEMUX_SHELL").unwrap_or_else(|_| "powershell.exe -NoLogo".into());
+/// Shell de cada painel: `NEMUX_SHELL` (ex.: `cmd.exe`), o `shell` da configuração ou PowerShell.
+pub fn shell_command(configured: Option<&str>) -> CommandBuilder {
+    let env = std::env::var("NEMUX_SHELL").ok();
+    let shell = env
+        .as_deref()
+        .or(configured)
+        .unwrap_or("powershell.exe -NoLogo");
     let mut parts = shell.split_whitespace();
     let mut cmd = CommandBuilder::new(parts.next().unwrap_or("powershell.exe"));
     cmd.args(parts);

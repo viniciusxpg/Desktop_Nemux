@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod config;
 #[cfg(windows)]
 mod conpty;
 mod keys;
@@ -15,7 +16,7 @@ mod terminal;
 mod ui_tests;
 
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -23,6 +24,7 @@ use std::time::Duration;
 use slint::{ModelRc, SharedString, VecModel};
 
 use app::{App, Metrics};
+use config::Config;
 use keys::Mods;
 use layout::{PaneId, Split};
 use memory_view::MemoryView;
@@ -72,14 +74,37 @@ fn pane_id(id: i32) -> PaneId {
     id.max(0) as PaneId
 }
 
-/// Registra os callbacks da interface com o banco de memória padrão.
+/// Registra os callbacks da interface com o banco de memória e a configuração padrão.
 pub fn init_controllers(ui: &AppWindow) -> Controllers {
-    init_controllers_with_db(ui, nemux_memory::default_path())
+    init_controllers_with(
+        ui,
+        nemux_memory::default_path(),
+        Some(&config::default_path()),
+    )
 }
 
 /// Registra os callbacks da interface. Não abre nenhuma aba, e o banco de memória só é
-/// aberto quando o painel é usado (os testes de UI passam um banco temporário).
-pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
+/// aberto quando o painel é usado (os testes de UI passam um banco temporário). Sem
+/// `config`, usa a configuração padrão; um arquivo com erro também, com um aviso na janela.
+pub fn init_controllers_with(ui: &AppWindow, db: PathBuf, config: Option<&Path>) -> Controllers {
+    let config = match config.map(Config::load).transpose() {
+        Ok(config) => config.unwrap_or_default(),
+        Err(e) => {
+            ui.set_config_error(e.into());
+            Config::default()
+        }
+    };
+    config.apply_theme(ui);
+    ui.on_config_error_dismissed({
+        let weak = ui.as_weak();
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                ui.set_config_error("".into());
+                ui.invoke_focus_terminal();
+            }
+        }
+    });
+
     let (tx, rx) = mpsc::channel();
 
     let panes_model = Rc::new(VecModel::default());
@@ -88,13 +113,10 @@ pub fn init_controllers_with_db(ui: &AppWindow, db: PathBuf) -> Controllers {
     ui.set_tabs(ModelRc::from(tabs_model.clone()));
     let dividers_model = Rc::new(VecModel::default());
     ui.set_dividers(ModelRc::from(dividers_model.clone()));
-    let app = Rc::new(RefCell::new(App::new(
-        tx,
-        metrics(ui),
-        panes_model,
-        tabs_model,
-        dividers_model,
-    )));
+    let mut app = App::new(tx, metrics(ui), panes_model, tabs_model, dividers_model);
+    app.colors = config.terminal_colors();
+    app.shell = Box::new(move || app::shell_command(config.shell.as_deref()));
+    let app = Rc::new(RefCell::new(app));
 
     let weak = ui.as_weak();
     let on_change = {

@@ -4,7 +4,7 @@ import { MemoryPanel, MemoryEntry } from "memory-panel.slint";
 import { TerminalPane, PaneView, TermLine, TermRun, SelRect } from "terminal-pane.slint";
 import { SessionPicker, SessionItem } from "session-picker.slint";
 
-export { MemoryEntry, PaneView, TermLine, TermRun, SelRect, SessionItem }
+export { MemoryEntry, PaneView, TermLine, TermRun, SelRect, SessionItem, Theme }
 
 // Divisória entre painéis, na área dos painéis; `vertical` = painéis lado a lado.
 export struct DividerView {
@@ -139,6 +139,9 @@ export component AppWindow inherits Window {
     in-out property <string> sessions-query;
     in property <string> sessions-status;
 
+    // Erro ao ler a configuração; vazio quando não há.
+    in property <string> config-error;
+
     // Tamanho de uma célula, medido com a própria fonte.
     out property <length> cell-width: measure.preferred-width / 10;
     out property <length> cell-height: measure.preferred-height;
@@ -181,6 +184,7 @@ export component AppWindow inherits Window {
     callback sessions-refresh();
     callback sessions-filter();
     callback session-open(int);
+    callback config-error-dismissed();
 
     // Os widgets (campo de busca, lista) seguem o tema escuro do terminal.
     init => {
@@ -323,6 +327,44 @@ export component AppWindow inherits Window {
 
                     memory-touch := TouchArea {
                         clicked => { root.toggle-memory(); }
+                    }
+                }
+            }
+        }
+
+        if root.config-error != "": config-banner := Rectangle {
+            height: 28px;
+            background: #5a1d1d;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 4px;
+
+                Text {
+                    text: "Configuração ignorada: " + root.config-error;
+                    color: Theme.foreground;
+                    vertical-alignment: center;
+                    overflow: elide;
+                    horizontal-stretch: 1;
+                }
+
+                Rectangle {
+                    width: 24px;
+                    accessible-role: button;
+                    accessible-label: "Fechar aviso da configuração";
+                    accessible-action-default => { root.config-error-dismissed(); }
+                    background: banner-close.has-hover ? #7a2d2d : transparent;
+
+                    Text {
+                        text: "×";
+                        color: Theme.foreground;
+                        font-size: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    banner-close := TouchArea {
+                        clicked => { root.config-error-dismissed(); }
                     }
                 }
             }

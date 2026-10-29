@@ -10,7 +10,7 @@ use super::{
     ALTURA, LARGURA, abrir, abrir_com_cmd, capturar, elemento, enviar, esperar, medir, painel,
 };
 use crate::layout::{Rect, grid_size};
-use crate::terminal::{Callbacks, Parser, snapshot};
+use crate::terminal::{Callbacks, Colors, Parser, snapshot};
 use crate::{AppWindow, PaneView, TabInfo};
 
 /// Passa `ansi` por um parser vt100 do tamanho de um painel que ocupa a área toda
@@ -31,7 +31,7 @@ fn mostrar(app: &AppWindow, ansi: &str) {
         Callbacks::default(),
     );
     parser.process(ansi.as_bytes());
-    let snap = snapshot(parser.screen());
+    let snap = snapshot(parser.screen(), &Colors::default());
 
     let lines: Vec<_> = snap.lines.iter().map(|l| crate::app::to_line(l)).collect();
     let (cursor_row, cursor_col) = snap.cursor.map_or((-1, 0), |(r, c)| (r as i32, c as i32));

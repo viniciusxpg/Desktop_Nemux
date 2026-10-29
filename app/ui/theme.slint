@@ -1,14 +1,15 @@
-// Cores e fonte do Nemux, compartilhadas entre os arquivos .slint.
+// Cores e fonte do Nemux, compartilhadas entre os arquivos .slint. Os valores
+// abaixo são o padrão; a configuração do usuário os troca ao abrir (config.rs).
 export global Theme {
-    out property <color> background: #1e1e1e;
-    out property <color> foreground: #cccccc;
-    out property <color> tab-bar: #2b2b2b;
-    out property <color> tab-active: #1e1e1e;
-    out property <color> tab-hover: #383838;
-    out property <color> muted: #8a8a8a;
-    out property <color> accent: #3b78ff;
-    out property <color> selection: #3b78ff66;
-    out property <color> divider: #3a3a3a;
-    out property <string> font-family: "Consolas";
-    out property <length> font-size: 14px;
+    in-out property <color> background: #1e1e1e;
+    in-out property <color> foreground: #cccccc;
+    in-out property <color> tab-bar: #2b2b2b;
+    in-out property <color> tab-active: #1e1e1e;
+    in-out property <color> tab-hover: #383838;
+    in-out property <color> muted: #8a8a8a;
+    in-out property <color> accent: #3b78ff;
+    in-out property <color> selection: #3b78ff66;
+    in-out property <color> divider: #3a3a3a;
+    in-out property <string> font-family: "Consolas";
+    in-out property <length> font-size: 14px;
 }

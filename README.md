@@ -119,9 +119,48 @@ cópias da mesma conversa.
 
 ## Configuração
 
+Shell, fonte e cores ficam em `%APPDATA%\nemux\config.toml`. O arquivo não
+existe até você criá-lo, e tudo nele é opcional: o que faltar fica com o padrão.
+Ele é lido ao abrir o app; depois de editar, feche e abra o Nemux de novo.
+
+```toml
+# Linha de comando de cada aba e painel novo.
+shell = "pwsh.exe -NoLogo"
+
+[font]
+family = "Cascadia Mono"   # ou uma Nerd Font, para os ícones do oh-my-posh/Starship
+size = 13                  # entre 6 e 72
+
+# Cores do terminal, em "#rrggbb" (ou "#rrggbbaa" para transparência).
+[colors]
+foreground = "#cccccc"
+background = "#1e1e1e"     # também é o fundo dos painéis e da aba ativa
+selection = "#3b78ff66"
+# As 16 cores ANSI, nesta ordem: preto, vermelho, verde, amarelo, azul,
+# magenta, ciano, branco e as 8 versões claras.
+palette = [
+  "#0c0c0c", "#c50f1f", "#13a10e", "#c19c00", "#0037da", "#881798", "#3a96dd", "#cccccc",
+  "#767676", "#e74856", "#16c60c", "#f9f1a5", "#3b78ff", "#b4009e", "#61d6d6", "#f2f2f2",
+]
+
+# Cores da interface em volta dos terminais.
+[app]
+tab_bar = "#2b2b2b"        # barra de abas e painéis laterais
+tab_hover = "#383838"      # aba e botões sob o mouse
+accent = "#3b78ff"         # aba ativa, painel com foco, divisória arrastada
+muted = "#8a8a8a"          # textos secundários e abas inativas
+divider = "#3a3a3a"        # espaço entre painéis
+```
+
+Os valores acima são os padrões, exceto `shell` e `font.family` (o padrão é
+`powershell.exe -NoLogo` e Consolas 14). Se o arquivo tiver um erro (uma cor mal
+escrita, uma chave desconhecida), o Nemux abre com o padrão e mostra o erro numa
+faixa abaixo das abas.
+
 | Variável | Padrão | Para quê |
 |---|---|---|
-| `NEMUX_SHELL` | `powershell.exe -NoLogo` | Shell de cada aba (ex.: `cmd.exe`, `pwsh.exe`) |
+| `NEMUX_SHELL` | `shell` do `config.toml` | Shell de cada aba; tem prioridade sobre a configuração |
+| `NEMUX_CONFIG` | `%APPDATA%\nemux\config.toml` | Caminho da configuração |
 | `NEMUX_DB` | `%APPDATA%\nemux\nemux.db` | Caminho do banco de memória (app e servidor MCP) |
 
 O servidor MCP também aceita o caminho do banco como argumento:

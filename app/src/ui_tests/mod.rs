@@ -4,6 +4,7 @@
 //
 // As capturas vão para <workspace>/target/ui-capturas/<nome>.png.
 
+mod config;
 mod divisorias;
 mod memoria;
 mod mouse;
@@ -55,7 +56,7 @@ pub fn abrir() -> App {
 // banco de memória em `db`. Nunca use o banco padrão: ele é o do usuário.
 pub fn abrir_com_controllers(db: &Path) -> (App, crate::Controllers) {
     let app = abrir();
-    let controllers = crate::init_controllers_with_db(&app, db.to_path_buf());
+    let controllers = crate::init_controllers_with(&app, db.to_path_buf(), None);
     (app, controllers)
 }
 

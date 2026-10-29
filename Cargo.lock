@@ -2928,10 +2928,12 @@ dependencies = [
  "png",
  "portable-pty",
  "resvg",
+ "serde",
  "serde_json",
  "slint",
  "slint-build",
  "tempfile",
+ "toml",
  "vt100",
  "winresource",
 ]

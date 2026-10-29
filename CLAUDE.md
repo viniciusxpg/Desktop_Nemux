@@ -27,6 +27,11 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     Claude Code e pode mudar: se a lista vier vazia ou sem título, comece por aqui.
   - `src/session_view.rs`: lista "Retomar sessão" (`ui/session-picker.slint`);
     retomar abre `powershell -NoExit -Command "claude --resume <id>"` na pasta da sessão.
+  - `src/config.rs`: `config.toml` do usuário (`%APPDATA%\nemux\config.toml` ou
+    `NEMUX_CONFIG`): shell, fonte e cores. Fonte e cores da interface vão para o
+    global `Theme` (por isso as propriedades dele são `in-out`); as do terminal
+    vão para `terminal::Colors`, usado no `snapshot()`. Lido só ao abrir; um
+    arquivo com erro vira a configuração padrão e um aviso (`config-error`).
   - `src/main.rs`: `init_controllers`, que liga os callbacks da interface ao `App`.
   - `ui/app-window.slint` (janela, abas, área dos painéis), `ui/terminal-pane.slint`
     (um painel: grade, seleção, cursor, mouse), `ui/memory-panel.slint`,
@@ -68,7 +73,9 @@ janela (backend de testes do Slint + renderizador por software):
 - Testes que só geram capturas levam `#[ignore]` e não têm asserções; testes com
   asserções nunca levam `#[ignore]`.
 - **Nunca use o banco de memória padrão nos testes** (é o do usuário): use
-  `abrir_com_controllers(caminho)` com um banco temporário.
+  `abrir_com_controllers(caminho)` com um banco temporário. O mesmo vale para o
+  `config.toml`: `abrir_com_controllers` não lê nenhum, e os testes de
+  configuração (`ui_tests/config.rs`) escrevem um arquivo temporário.
 - Os testes de seleção rodam um `cmd.exe` de verdade no ConPTY.
 
 ## Cuidados

@@ -197,8 +197,8 @@ impl Terminal {
         self.parser.lock().unwrap().screen().application_cursor()
     }
 
-    pub fn snapshot(&self) -> Snapshot {
-        snapshot(self.parser.lock().unwrap().screen())
+    pub fn snapshot(&self, colors: &Colors) -> Snapshot {
+        snapshot(self.parser.lock().unwrap().screen(), colors)
     }
 
     /// Acesso de leitura à tela (ex.: para extrair o texto selecionado).
@@ -228,8 +228,69 @@ fn pty_size(rows: NonZeroU16, cols: NonZeroU16) -> PtySize {
 
 pub type Rgb = (u8, u8, u8);
 
-pub const DEFAULT_FG: Rgb = (0xcc, 0xcc, 0xcc);
-pub const DEFAULT_BG: Rgb = (0x1e, 0x1e, 0x1e);
+/// Cores padrão do texto e do fundo e as 16 cores ANSI (o resto das 256 é fixo).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Colors {
+    pub foreground: Rgb,
+    pub background: Rgb,
+    pub palette: [Rgb; 16],
+}
+
+impl Default for Colors {
+    /// Esquema "Campbell" do Windows Terminal, com o fundo do tema do Nemux.
+    fn default() -> Self {
+        Self {
+            foreground: (0xcc, 0xcc, 0xcc),
+            background: (0x1e, 0x1e, 0x1e),
+            palette: [
+                (0x0c, 0x0c, 0x0c),
+                (0xc5, 0x0f, 0x1f),
+                (0x13, 0xa1, 0x0e),
+                (0xc1, 0x9c, 0x00),
+                (0x00, 0x37, 0xda),
+                (0x88, 0x17, 0x98),
+                (0x3a, 0x96, 0xdd),
+                (0xcc, 0xcc, 0xcc),
+                (0x76, 0x76, 0x76),
+                (0xe7, 0x48, 0x56),
+                (0x16, 0xc6, 0x0c),
+                (0xf9, 0xf1, 0xa5),
+                (0x3b, 0x78, 0xff),
+                (0xb4, 0x00, 0x9e),
+                (0x61, 0xd6, 0xd6),
+                (0xf2, 0xf2, 0xf2),
+            ],
+        }
+    }
+}
+
+impl Colors {
+    /// Paleta de 256 cores do xterm: as 16 primeiras são as configuradas.
+    pub fn palette(&self, i: u8) -> Rgb {
+        match i {
+            0..16 => self.palette[i as usize],
+            16..232 => {
+                let i = i - 16;
+                let level = |v: u8| if v == 0 { 0 } else { 55 + v * 40 };
+                (level(i / 36), level(i / 6 % 6), level(i % 6))
+            }
+            _ => {
+                let v = 8 + (i - 232) * 10;
+                (v, v, v)
+            }
+        }
+    }
+
+    /// Converte a cor do vt100; `None` para a cor padrão. Negrito clareia as 8 cores básicas.
+    fn color(&self, c: vt100::Color, bold: bool) -> Option<Rgb> {
+        match c {
+            vt100::Color::Default => None,
+            vt100::Color::Rgb(r, g, b) => Some((r, g, b)),
+            vt100::Color::Idx(i) if bold && i < 8 => Some(self.palette(i + 8)),
+            vt100::Color::Idx(i) => Some(self.palette(i)),
+        }
+    }
+}
 
 /// Trecho de uma linha com o mesmo estilo, começando na coluna `col`.
 #[derive(Debug, Clone, PartialEq)]
@@ -265,10 +326,10 @@ struct Style {
     underline: bool,
 }
 
-pub fn snapshot(screen: &vt100::Screen) -> Snapshot {
+pub fn snapshot(screen: &vt100::Screen, colors: &Colors) -> Snapshot {
     let (rows, cols) = screen.size();
     let lines = (0..rows.get())
-        .map(|row| line_runs(screen, row, cols.get()))
+        .map(|row| line_runs(screen, row, cols.get(), colors))
         .collect();
     let cursor =
         (!screen.hide_cursor() && screen.scrollback() == 0).then(|| screen.cursor_position());
@@ -280,7 +341,7 @@ pub fn snapshot(screen: &vt100::Screen) -> Snapshot {
     }
 }
 
-fn line_runs(screen: &vt100::Screen, row: u16, cols: u16) -> Vec<Run> {
+fn line_runs(screen: &vt100::Screen, row: u16, cols: u16, colors: &Colors) -> Vec<Run> {
     let mut runs: Vec<Run> = Vec::new();
     // O trecho atual pode receber mais células? (Caracteres largos ficam isolados.)
     let mut open = false;
@@ -291,7 +352,7 @@ fn line_runs(screen: &vt100::Screen, row: u16, cols: u16) -> Vec<Run> {
         if cell.is_wide_continuation() {
             continue;
         }
-        let style = cell_style(cell);
+        let style = cell_style(cell, colors);
         let text = if cell.has_contents() {
             cell.contents()
         } else {
@@ -345,16 +406,18 @@ fn run_style(run: &Run) -> Style {
     }
 }
 
-fn cell_style(cell: &vt100::Cell) -> Style {
-    let mut fg = color(cell.fgcolor(), cell.bold()).unwrap_or(DEFAULT_FG);
-    let mut bg = color(cell.bgcolor(), false);
+fn cell_style(cell: &vt100::Cell, colors: &Colors) -> Style {
+    let mut fg = colors
+        .color(cell.fgcolor(), cell.bold())
+        .unwrap_or(colors.foreground);
+    let mut bg = colors.color(cell.bgcolor(), false);
     if cell.inverse() {
         let old_fg = fg;
-        fg = bg.unwrap_or(DEFAULT_BG);
+        fg = bg.unwrap_or(colors.background);
         bg = Some(old_fg);
     }
     if cell.dim() {
-        fg = mix(fg, bg.unwrap_or(DEFAULT_BG));
+        fg = mix(fg, bg.unwrap_or(colors.background));
     }
     Style {
         fg,
@@ -362,50 +425,6 @@ fn cell_style(cell: &vt100::Cell) -> Style {
         bold: cell.bold(),
         italic: cell.italic(),
         underline: cell.underline(),
-    }
-}
-
-/// Converte a cor do vt100; `None` para a cor padrão. Negrito clareia as 8 cores básicas.
-fn color(c: vt100::Color, bold: bool) -> Option<Rgb> {
-    match c {
-        vt100::Color::Default => None,
-        vt100::Color::Rgb(r, g, b) => Some((r, g, b)),
-        vt100::Color::Idx(i) if bold && i < 8 => Some(palette(i + 8)),
-        vt100::Color::Idx(i) => Some(palette(i)),
-    }
-}
-
-/// Paleta de 256 cores do xterm; as 16 primeiras seguem o esquema "Campbell" do Windows Terminal.
-pub fn palette(i: u8) -> Rgb {
-    const BASE: [Rgb; 16] = [
-        (0x0c, 0x0c, 0x0c),
-        (0xc5, 0x0f, 0x1f),
-        (0x13, 0xa1, 0x0e),
-        (0xc1, 0x9c, 0x00),
-        (0x00, 0x37, 0xda),
-        (0x88, 0x17, 0x98),
-        (0x3a, 0x96, 0xdd),
-        (0xcc, 0xcc, 0xcc),
-        (0x76, 0x76, 0x76),
-        (0xe7, 0x48, 0x56),
-        (0x16, 0xc6, 0x0c),
-        (0xf9, 0xf1, 0xa5),
-        (0x3b, 0x78, 0xff),
-        (0xb4, 0x00, 0x9e),
-        (0x61, 0xd6, 0xd6),
-        (0xf2, 0xf2, 0xf2),
-    ];
-    match i {
-        0..16 => BASE[i as usize],
-        16..232 => {
-            let i = i - 16;
-            let level = |v: u8| if v == 0 { 0 } else { 55 + v * 40 };
-            (level(i / 36), level(i / 6 % 6), level(i % 6))
-        }
-        _ => {
-            let v = 8 + (i - 232) * 10;
-            (v, v, v)
-        }
     }
 }
 
@@ -426,13 +445,13 @@ mod tests {
     fn groups_cells_into_styled_runs() {
         let mut p = parser(3, 20);
         p.process(b"ab\x1b[31mred\x1b[0m   \x1b[44m  \x1b[0m");
-        let snap = snapshot(p.screen());
+        let snap = snapshot(p.screen(), &Colors::default());
         let line = &snap.lines[0];
         let runs: Vec<_> = line.iter().map(|r| (r.col, r.text.as_str())).collect();
         assert_eq!(runs, [(0, "ab"), (2, "red"), (5, "   "), (8, "  ")]);
-        assert_eq!(line[1].fg, palette(1));
+        assert_eq!(line[1].fg, Colors::default().palette(1));
         // O fundo azul no fim da linha é mantido; espaços sem fundo seriam cortados.
-        assert_eq!(line[3].bg, Some(palette(4)));
+        assert_eq!(line[3].bg, Some(Colors::default().palette(4)));
         assert!(snap.lines[1].is_empty());
         assert_eq!(snap.cursor, Some((0, 10)));
     }
@@ -441,7 +460,7 @@ mod tests {
     fn trims_trailing_spaces() {
         let mut p = parser(1, 20);
         p.process(b"hi    ");
-        let line = &snapshot(p.screen()).lines[0];
+        let line = &snapshot(p.screen(), &Colors::default()).lines[0];
         assert_eq!(line.len(), 1);
         assert_eq!((line[0].text.as_str(), line[0].width), ("hi", 2));
     }
@@ -450,7 +469,7 @@ mod tests {
     fn wide_chars_get_their_own_run() {
         let mut p = parser(1, 20);
         p.process("a界b".as_bytes());
-        let line = &snapshot(p.screen()).lines[0];
+        let line = &snapshot(p.screen(), &Colors::default()).lines[0];
         let cols: Vec<_> = line
             .iter()
             .map(|r| (r.col, r.width, r.text.as_str()))
@@ -462,8 +481,9 @@ mod tests {
     fn inverse_and_rgb() {
         let mut p = parser(1, 10);
         p.process(b"\x1b[7mX\x1b[0m\x1b[38;2;1;2;3mY");
-        let line = &snapshot(p.screen()).lines[0];
-        assert_eq!((line[0].fg, line[0].bg), (DEFAULT_BG, Some(DEFAULT_FG)));
+        let line = &snapshot(p.screen(), &Colors::default()).lines[0];
+        let c = Colors::default();
+        assert_eq!((line[0].fg, line[0].bg), (c.background, Some(c.foreground)));
         assert_eq!(line[1].fg, (1, 2, 3));
     }
 
@@ -485,28 +505,47 @@ mod tests {
     fn hidden_cursor_and_scrollback() {
         let mut p = parser(2, 10);
         p.process(b"1\r\n2\r\n3\r\n4");
-        let mut snap = snapshot(p.screen());
+        let mut snap = snapshot(p.screen(), &Colors::default());
         assert_eq!(snap.lines[0][0].text, "3");
         assert_eq!((snap.history, snap.offset), (2, 0));
         p.screen_mut().set_scrollback(2);
-        snap = snapshot(p.screen());
+        snap = snapshot(p.screen(), &Colors::default());
         assert_eq!(snap.lines[0][0].text, "1");
         assert_eq!((snap.history, snap.offset), (2, 2));
         assert_eq!(snap.cursor, None);
         // Além do topo, o vt100 limita ao tamanho do histórico.
         p.screen_mut().set_scrollback(99);
-        assert_eq!(snapshot(p.screen()).offset, 2);
+        assert_eq!(snapshot(p.screen(), &Colors::default()).offset, 2);
         p.screen_mut().set_scrollback(0);
         p.process(b"\x1b[?25l");
-        assert_eq!(snapshot(p.screen()).cursor, None);
+        assert_eq!(snapshot(p.screen(), &Colors::default()).cursor, None);
     }
 
     #[test]
     fn palette_cube_and_grays() {
-        assert_eq!(palette(16), (0, 0, 0));
-        assert_eq!(palette(231), (255, 255, 255));
-        assert_eq!(palette(232), (8, 8, 8));
-        assert_eq!(palette(255), (238, 238, 238));
+        let c = Colors::default();
+        assert_eq!(c.palette(16), (0, 0, 0));
+        assert_eq!(c.palette(231), (255, 255, 255));
+        assert_eq!(c.palette(232), (8, 8, 8));
+        assert_eq!(c.palette(255), (238, 238, 238));
+    }
+
+    #[test]
+    fn configured_colors() {
+        let mut colors = Colors {
+            foreground: (1, 1, 1),
+            background: (2, 2, 2),
+            ..Colors::default()
+        };
+        colors.palette[1] = (9, 0, 0);
+        colors.palette[9] = (99, 0, 0);
+        let mut p = parser(1, 20);
+        p.process(b"a[31mb[1mc[0m[7md");
+        let line = &snapshot(p.screen(), &colors).lines[0];
+        let fg: Vec<_> = line.iter().map(|r| r.fg).collect();
+        // Negrito usa a versão clara da paleta; inverso troca texto e fundo padrão.
+        assert_eq!(fg, [(1, 1, 1), (9, 0, 0), (99, 0, 0), (2, 2, 2)]);
+        assert_eq!(line[3].bg, Some((1, 1, 1)));
     }
 
     /// Roda um processo de verdade no ConPTY e confere a saída.
@@ -535,7 +574,7 @@ mod tests {
         }
         // A saída pode chegar logo depois do fim do processo.
         let screen_text = || -> String {
-            term.snapshot()
+            term.snapshot(&Colors::default())
                 .lines
                 .iter()
                 .flatten()
