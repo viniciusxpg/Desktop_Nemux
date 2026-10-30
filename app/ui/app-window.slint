@@ -5,6 +5,7 @@ import { TerminalPane, PaneView, TermLine, TermRun, SelRect } from "terminal-pan
 import { SessionPicker, SessionItem } from "session-picker.slint";
 import { ThemePicker, ThemeItem } from "theme-picker.slint";
 import { SearchBar } from "search-bar.slint";
+import { SettingsMenu, ShortcutsCard } from "settings-menu.slint";
 
 export { MemoryEntry, PaneView, TermLine, TermRun, SelRect, SessionItem, ThemeItem, Theme }
 
@@ -172,6 +173,12 @@ export component AppWindow inherits Window {
     in-out property <string> search-query;
     in property <string> search-status;
 
+    // Menu da engrenagem e a lista de atalhos que ele abre.
+    in-out property <bool> settings-open;
+    in-out property <bool> shortcuts-open;
+    in property <bool> restore-tabs: true;
+    in property <bool> has-config;
+
     // Erro ao ler a configuração (ou ao gravar o tema); vazio quando não há.
     in property <string> config-error;
 
@@ -219,6 +226,10 @@ export component AppWindow inherits Window {
     callback session-open(int);
     callback config-error-dismissed();
     callback theme-chosen(int);
+    // Fonte: +1 / -1 ponto; 0 volta ao padrão.
+    callback font-zoom(int);
+    callback restore-toggled(bool);
+    callback open-config();
     // Busca: o texto mudou, ir para a ocorrência acima (true) ou abaixo, e fechar.
     callback search-changed(string);
     callback search-step(bool);
@@ -249,8 +260,26 @@ export component AppWindow inherits Window {
     }
 
     public function toggle-themes() {
+        root.settings-open = false;
         root.themes-open = !root.themes-open;
         if !root.themes-open {
+            key-handler.focus();
+        }
+    }
+
+    public function toggle-settings() {
+        root.themes-open = false;
+        root.shortcuts-open = false;
+        root.settings-open = !root.settings-open;
+        if !root.settings-open {
+            key-handler.focus();
+        }
+    }
+
+    public function toggle-shortcuts() {
+        root.settings-open = false;
+        root.shortcuts-open = !root.shortcuts-open;
+        if !root.shortcuts-open {
             key-handler.focus();
         }
     }
@@ -338,25 +367,6 @@ export component AppWindow inherits Window {
                     horizontal-stretch: 1000;
                 }
 
-                themes-btn := Rectangle {
-                    width: 72px;
-                    accessible-role: button;
-                    accessible-label: "Temas";
-                    accessible-action-default => { root.toggle-themes(); }
-                    background: root.themes-open ? Theme.tab-active : (themes-touch.has-hover ? Theme.tab-hover : transparent);
-
-                    Text {
-                        text: "Temas";
-                        color: root.themes-open || themes-touch.has-hover ? Theme.foreground : Theme.muted;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-
-                    themes-touch := TouchArea {
-                        clicked => { root.toggle-themes(); }
-                    }
-                }
-
                 sessions-btn := Rectangle {
                     width: 80px;
                     accessible-role: button;
@@ -412,6 +422,27 @@ export component AppWindow inherits Window {
                         clicked => { root.toggle-memory(); }
                     }
                 }
+
+                settings-btn := Rectangle {
+                    property <bool> lit: root.settings-open || root.themes-open || root.shortcuts-open;
+                    width: 36px;
+                    accessible-role: button;
+                    accessible-label: "Configurações";
+                    accessible-action-default => { root.toggle-settings(); }
+                    background: self.lit ? Theme.tab-active : (settings-touch.has-hover ? Theme.tab-hover : transparent);
+
+                    Text {
+                        text: "⚙";
+                        color: parent.lit || settings-touch.has-hover ? Theme.foreground : Theme.muted;
+                        font-size: 16px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    settings-touch := TouchArea {
+                        clicked => { root.toggle-settings(); }
+                    }
+                }
             }
         }
 
@@ -465,6 +496,15 @@ export component AppWindow inherits Window {
                     key-pressed(event) => {
                         if event.modifiers.control && event.modifiers.shift && !event.modifiers.alt && (event.text == "m" || event.text == "M") {
                             root.toggle-memory();
+                            return accept;
+                        }
+                        // Ctrl+= (ou Ctrl++), Ctrl+- e Ctrl+0: tamanho da fonte.
+                        if event.modifiers.control && !event.modifiers.alt && (event.text == "=" || event.text == "+") {
+                            root.font-zoom(1);
+                            return accept;
+                        }
+                        if event.modifiers.control && !event.modifiers.alt && !event.modifiers.shift && (event.text == "-" || event.text == "0") {
+                            root.font-zoom(event.text == "-" ? -1 : 0);
                             return accept;
                         }
                         if event.modifiers.control && event.modifiers.shift && !event.modifiers.alt && (event.text == "f" || event.text == "F") {
@@ -563,10 +603,40 @@ export component AppWindow inherits Window {
         themes: root.themes;
         current: root.theme-index;
         note: root.themes-note;
-        anchor-right: themes-btn.x + themes-btn.width;
+        anchor-right: settings-btn.x + settings-btn.width;
         anchor-top: tab-bar.height + 2px;
         choose(i) => { root.theme-chosen(i); }
         close => { root.toggle-themes(); }
+    }
+
+    if root.settings-open: settings-menu := SettingsMenu {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        anchor-right: settings-btn.x + settings-btn.width;
+        anchor-top: tab-bar.height + 2px;
+        restore-tabs: root.restore-tabs;
+        has-config: root.has-config;
+        themes => { root.toggle-themes(); }
+        font-zoom(step) => { root.font-zoom(step); }
+        restore-toggled(on) => { root.restore-toggled(on); }
+        open-config => {
+            root.toggle-settings();
+            root.open-config();
+        }
+        shortcuts => { root.toggle-shortcuts(); }
+        close => { root.toggle-settings(); }
+    }
+
+    if root.shortcuts-open: shortcuts-card := ShortcutsCard {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        anchor-right: settings-btn.x + settings-btn.width;
+        anchor-top: tab-bar.height + 2px;
+        close => { root.toggle-shortcuts(); }
     }
 
     if root.sessions-open: session-picker := SessionPicker {

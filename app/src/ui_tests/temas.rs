@@ -1,4 +1,4 @@
-// Lista de temas prontos (botão "Temas"): aplica na hora e grava no config.toml.
+// Lista de temas prontos (engrenagem → "Temas"): aplica na hora e grava no config.toml.
 
 use i_slint_backend_testing::ElementHandle;
 use slint::{ComponentHandle, Model};
@@ -22,8 +22,10 @@ fn escolher_um_tema_aplica_e_grava() {
     assert_eq!(app.get_theme_index(), 0, "sem `theme`, o primeiro");
 
     assert!(achar(&app, "AppWindow::theme-picker").is_none());
+    botao(&app, "Configurações").invoke_accessible_default_action();
     botao(&app, "Temas").invoke_accessible_default_action();
     assert!(achar(&app, "AppWindow::theme-picker").is_some());
+    assert!(!app.get_settings_open(), "o menu dá lugar à lista");
     let nomes: Vec<_> = app
         .get_themes()
         .iter()
@@ -60,8 +62,10 @@ fn escolher_um_tema_aplica_e_grava() {
     );
     assert_eq!(app.get_config_error(), "");
 
-    botao(&app, "Temas").invoke_accessible_default_action();
+    // A engrenagem fecha a lista (e abre o menu de novo).
+    botao(&app, "Configurações").invoke_accessible_default_action();
     assert!(achar(&app, "AppWindow::theme-picker").is_none());
+    assert!(app.get_settings_open());
 }
 
 #[test]

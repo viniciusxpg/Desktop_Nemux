@@ -8,6 +8,7 @@ mod abas_salvas;
 mod avisos;
 mod busca;
 mod config;
+mod configuracoes;
 mod divisorias;
 mod memoria;
 mod mouse;

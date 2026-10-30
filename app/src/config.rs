@@ -255,9 +255,7 @@ impl Config {
         if let Some(family) = &self.font.family {
             theme.set_font_family(family.as_str().into());
         }
-        if let Some(size) = self.font.size {
-            theme.set_font_size(size);
-        }
+        theme.set_font_size(self.font.size.unwrap_or(DEFAULT_FONT_SIZE));
     }
 }
 
@@ -292,6 +290,29 @@ fn preset_index(name: &str) -> Option<usize> {
 
 /// Grava `theme = "<name>"` em `path`, mantendo o resto do arquivo (e os comentários).
 pub fn save_theme(path: &Path, name: &str) -> Result<(), String> {
+    edit_file(path, |doc| doc["theme"] = toml_edit::value(name))
+}
+
+/// Grava `[font] size`; `None` apaga a linha (volta ao padrão).
+pub fn save_font_size(path: &Path, size: Option<f32>) -> Result<(), String> {
+    edit_file(path, |doc| match size {
+        Some(size) if size.fract() == 0.0 => doc["font"]["size"] = toml_edit::value(size as i64),
+        Some(size) => doc["font"]["size"] = toml_edit::value(f64::from(size)),
+        None => {
+            if let Some(font) = doc.get_mut("font").and_then(|f| f.as_table_like_mut()) {
+                font.remove("size");
+            }
+        }
+    })
+}
+
+pub fn save_restore(path: &Path, restore: bool) -> Result<(), String> {
+    edit_file(path, |doc| doc["restore"] = toml_edit::value(restore))
+}
+
+/// Muda `path` com `edit`, mantendo o resto do arquivo (e os comentários).
+/// Um arquivo que não existe é criado.
+fn edit_file(path: &Path, edit: impl FnOnce(&mut toml_edit::DocumentMut)) -> Result<(), String> {
     let err = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
     let text = match std::fs::read_to_string(path) {
         Ok(text) => text,
@@ -299,12 +320,40 @@ pub fn save_theme(path: &Path, name: &str) -> Result<(), String> {
         Err(e) => return Err(err(&e)),
     };
     let mut doc: toml_edit::DocumentMut = text.parse().map_err(|e| err(&e))?;
-    doc["theme"] = toml_edit::value(name);
+    edit(&mut doc);
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| err(&e))?;
     }
     std::fs::write(path, doc.to_string()).map_err(|e| err(&e))
 }
+
+/// Cria `path` com um cabeçalho explicativo, se ele ainda não existe (para abrir no editor).
+pub fn ensure_exists(path: &Path) -> Result<(), String> {
+    if path.exists() {
+        return Ok(());
+    }
+    let err = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| err(&e))?;
+    }
+    std::fs::write(path, NEW_FILE).map_err(|e| err(&e))
+}
+
+const NEW_FILE: &str = r#"# Configuração do Nemux. Tudo é opcional; as mudanças valem ao reabrir o app
+# (tema, fonte e "restaurar abas" também mudam pelo menu da engrenagem).
+# Todas as opções estão na seção "Configuração" do README do Nemux.
+
+# shell = "pwsh.exe -NoLogo"
+# theme = "Dracula"
+# restore = true
+
+# [font]
+# family = "Cascadia Mono"
+# size = 14
+"#;
+
+/// Tamanho da fonte sem `[font] size` (o de `ui/theme.slint`).
+pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 
 #[cfg(test)]
 mod tests {

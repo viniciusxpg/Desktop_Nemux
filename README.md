@@ -48,9 +48,13 @@ Aba 3: claude ─┘                     ▲
   salvar, buscar e apagar memórias.
 - **Painel de memória**: veja, busque, filtre por projeto e apague o que o Claude
   salvou. A lista atualiza sozinha quando alguma sessão grava algo novo.
-- **Temas**: o botão **Temas** na barra de abas troca as cores na hora (Nemux,
-  One Half Dark, Dracula, Solarized Dark, Gruvbox Dark, Tokyo Night e Rosé Pine),
-  e a escolha fica salva para a próxima vez.
+- **Configurações** (engrenagem ⚙ no canto da barra de abas): **Temas** troca as
+  cores na hora (Nemux, One Half Dark, Dracula, Solarized Dark, Gruvbox Dark,
+  Tokyo Night e Rosé Pine); **Fonte** aumenta e diminui o texto (também com
+  `Ctrl+=`, `Ctrl+-` e `Ctrl+0`); **Restaurar abas ao abrir** liga e desliga a
+  restauração; **Abrir config.toml** abre o arquivo no editor (e o cria, se ainda
+  não existir); **Atalhos de teclado** lista os atalhos. Tudo fica salvo no
+  `config.toml` para a próxima vez.
 - **Abas restauradas**: ao fechar e abrir o Nemux, as abas voltam como estavam:
   as divisões e seus tamanhos, a aba e o painel com o foco, a pasta de cada painel
   e as **sessões do Claude**, retomadas com `claude --resume` no painel onde
@@ -161,6 +165,7 @@ Para remover: `claude mcp remove nemux -s user`.
 | Botão direito | Copiar a seleção, ou colar se não houver seleção |
 | `Shift+PageUp` / `Shift+PageDown` | Rolar o histórico (também com a roda do mouse ou a barra de rolagem de cada painel) |
 | `Ctrl+Shift+F` | Buscar no histórico do painel (`Enter` / `Shift+Enter`: ocorrência acima / abaixo; `Esc` fecha) |
+| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Aumentar / diminuir / voltar ao padrão o tamanho da fonte |
 | `Ctrl+Shift+M` | Abrir / fechar o painel de memória |
 | `Ctrl+Shift+R` | Retomar uma sessão do Claude Code (também pelo botão "Sessões") |
 
@@ -176,7 +181,7 @@ cópias da mesma conversa.
 ## Configuração
 
 Shell, fonte e cores ficam em `%APPDATA%\nemux\config.toml`. O arquivo não
-existe até você criá-lo (ou escolher um tema pelo botão **Temas**, que o cria), e
+existe até você criá-lo (ou mudar algo pelo menu da engrenagem, que o cria), e
 tudo nele é opcional: o que faltar fica com o padrão. Ele é lido ao abrir o app;
 depois de editar à mão, feche e abra o Nemux de novo.
 
@@ -184,7 +189,7 @@ depois de editar à mão, feche e abra o Nemux de novo.
 # Linha de comando de cada aba e painel novo.
 shell = "pwsh.exe -NoLogo"
 
-# Um dos temas prontos; o botão "Temas" grava esta linha. As cores de [colors]
+# Um dos temas prontos; o menu "Temas" grava esta linha. As cores de [colors]
 # e [app] abaixo ficam por cima das do tema: use-as só para ajustar uma ou outra.
 theme = "Nemux"
 

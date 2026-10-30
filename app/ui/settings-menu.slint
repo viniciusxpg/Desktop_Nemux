@@ -1,0 +1,288 @@
+import { Theme } from "theme.slint";
+
+// Linha clicável do menu: texto à esquerda e um detalhe à direita (seta, ✓, atalho).
+component MenuRow inherits Rectangle {
+    in property <string> text;
+    in property <string> detail;
+    // Para os testes e leitores de tela; o padrão é o próprio texto.
+    in property <string> label: root.text;
+    in property <bool> checkable;
+    in property <bool> checked;
+    callback clicked();
+
+    height: 32px;
+    border-radius: 4px;
+    background: touch.has-hover ? Theme.tab-hover : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-checkable: root.checkable;
+    accessible-checked: root.checked;
+    accessible-action-default => { root.clicked(); }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+
+        Text {
+            text: root.text;
+            color: Theme.foreground;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        Text {
+            text: root.checkable ? (root.checked ? "✓" : "") : root.detail;
+            color: root.checkable ? Theme.accent : Theme.muted;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// Botão pequeno com borda (−, + e "Padrão" da fonte).
+component StepButton inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    callback clicked();
+
+    min-width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: Theme.divider;
+    background: touch.has-hover ? Theme.tab-hover : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.clicked(); }
+
+    HorizontalLayout {
+        padding-left: 6px;
+        padding-right: 6px;
+
+        Text {
+            text: root.icon;
+            color: Theme.foreground;
+            font-size: root.icon.character-count > 1 ? 11px : 14px;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component Separator inherits Rectangle {
+    height: 9px;
+
+    Rectangle {
+        height: 1px;
+        background: Theme.divider;
+    }
+}
+
+// Cartão flutuante abaixo de um botão da barra; clicar fora ou Esc fecha.
+component Popup inherits Rectangle {
+    in property <length> anchor-right;
+    in property <length> anchor-top;
+    in property <length> card-width;
+    callback close();
+
+    init => {
+        keys.focus();
+    }
+
+    TouchArea {
+        clicked => { root.close(); }
+    }
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.close();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    card := Rectangle {
+        x: root.anchor-right - self.width;
+        y: root.anchor-top;
+        width: root.card-width;
+        height: content.preferred-height;
+        border-radius: 8px;
+        background: Theme.tab-bar;
+        border-width: 1px;
+        border-color: Theme.divider;
+        drop-shadow-blur: 12px;
+        drop-shadow-color: #00000080;
+
+        // Engole os cliques dentro do cartão, para não fechar.
+        TouchArea { }
+
+        content := VerticalLayout {
+            padding: 6px;
+            spacing: 2px;
+
+            @children
+        }
+    }
+}
+
+// Menu da engrenagem: opções que se mudam de vez em quando. Fonte e "restaurar
+// abas" ficam no menu aberto; Temas e Atalhos abrem os próprios cartões.
+export component SettingsMenu inherits Popup {
+    // Reabrir as abas da última vez.
+    in property <bool> restore-tabs;
+    // Há um config.toml (os testes sem configuração não têm).
+    in property <bool> has-config;
+
+    callback themes();
+    // Passos da fonte: +1, -1; 0 volta ao padrão.
+    callback font-zoom(int);
+    callback restore-toggled(bool);
+    callback open-config();
+    callback shortcuts();
+
+    card-width: 270px;
+
+    MenuRow {
+        text: "Temas";
+        detail: "›";
+        clicked => { root.themes(); }
+    }
+
+    font-row := HorizontalLayout {
+        height: 34px;
+        padding-top: 4px;
+        padding-bottom: 4px;
+        padding-left: 10px;
+        padding-right: 6px;
+        spacing: 6px;
+
+        Text {
+            text: "Fonte";
+            color: Theme.foreground;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+
+        StepButton {
+            icon: "−";
+            label: "Diminuir a fonte (Ctrl+-)";
+            clicked => { root.font-zoom(-1); }
+        }
+
+        font-size-text := Text {
+            min-width: 28px;
+            text: round(Theme.font-size / 1px);
+            color: Theme.foreground;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            accessible-role: text;
+            accessible-label: "Tamanho da fonte";
+        }
+
+        StepButton {
+            icon: "+";
+            label: "Aumentar a fonte (Ctrl+=)";
+            clicked => { root.font-zoom(1); }
+        }
+
+        StepButton {
+            icon: "Padrão";
+            label: "Fonte padrão (Ctrl+0)";
+            clicked => { root.font-zoom(0); }
+        }
+    }
+
+    MenuRow {
+        text: "Restaurar abas ao abrir";
+        checkable: true;
+        checked: root.restore-tabs;
+        clicked => { root.restore-toggled(!root.restore-tabs); }
+    }
+
+    Separator { }
+
+    if root.has-config: MenuRow {
+        text: "Abrir config.toml";
+        clicked => { root.open-config(); }
+    }
+
+    MenuRow {
+        text: "Atalhos de teclado";
+        detail: "›";
+        clicked => { root.shortcuts(); }
+    }
+}
+
+export struct Shortcut {
+    keys: string,
+    action: string,
+}
+
+// Lista dos atalhos, só para consulta.
+export component ShortcutsCard inherits Popup {
+    // Mantenha igual à tabela "Atalhos" do README.
+    in property <[Shortcut]> shortcuts: [
+        { keys: "Ctrl+Shift+T", action: "Nova aba" },
+        { keys: "Ctrl+Tab", action: "Próxima aba (com Shift: anterior)" },
+        { keys: "Ctrl+Shift+W", action: "Fechar o painel" },
+        { keys: "Alt+Shift+= / -", action: "Dividir ao lado / abaixo" },
+        { keys: "Alt+setas", action: "Ir para o painel vizinho" },
+        { keys: "Ctrl+Shift+C", action: "Copiar a seleção" },
+        { keys: "Ctrl+V", action: "Colar (botão direito também)" },
+        { keys: "Shift+Enter", action: "Nova linha no prompt do Claude Code" },
+        { keys: "Shift+PageUp/Down", action: "Rolar o histórico" },
+        { keys: "Ctrl+Shift+F", action: "Buscar no histórico" },
+        { keys: "Ctrl+= / - / 0", action: "Aumentar / diminuir / restaurar a fonte" },
+        { keys: "Ctrl+Shift+M", action: "Painel de memória" },
+        { keys: "Ctrl+Shift+R", action: "Retomar sessão do Claude" },
+    ];
+
+    card-width: 420px;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        height: 30px;
+
+        Text {
+            text: "Atalhos de teclado";
+            color: Theme.foreground;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+
+    for s in root.shortcuts: HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 12px;
+        height: 24px;
+
+        Text {
+            width: 150px;
+            text: s.keys;
+            color: Theme.accent;
+            font-family: Theme.font-family;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+
+        Text {
+            text: s.action;
+            color: Theme.foreground;
+            font-size: 12px;
+            vertical-alignment: center;
+            overflow: elide;
+            horizontal-stretch: 1;
+        }
+    }
+}

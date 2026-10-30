@@ -18,7 +18,7 @@ mod ui_tests;
 mod window;
 mod workspace;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::mpsc;
@@ -37,6 +37,9 @@ use workspace::Workspace;
 
 slint::include_modules!();
 
+/// Abre um arquivo no programa padrão; trocável nos testes.
+type Opener = Rc<RefCell<Box<dyn Fn(&Path)>>>;
+
 /// Estado do app e os timers que repassam eventos; precisam viver enquanto a janela existir.
 pub struct Controllers {
     app: Rc<RefCell<App>>,
@@ -45,6 +48,11 @@ pub struct Controllers {
     sessions: Rc<RefCell<SessionsView>>,
     /// Onde as abas são gravadas; `None` não grava nem restaura.
     workspace: Option<PathBuf>,
+    /// "Restaurar abas ao abrir" (`restore` no config.toml); o menu muda na hora.
+    restore: Rc<Cell<bool>>,
+    /// Abre um arquivo no programa padrão do Windows (os testes trocam).
+    #[cfg_attr(not(test), allow(dead_code))]
+    opener: Opener,
     db: PathBuf,
     _timer: slint::Timer,
     _memory_timer: slint::Timer,
@@ -60,7 +68,11 @@ impl Controllers {
 
     /// Reabre as abas da última vez; sem elas, abre uma aba nova.
     pub fn restore_or_open_tab(&self, ui: &AppWindow) {
-        let saved = self.workspace.as_deref().and_then(Workspace::load);
+        let saved = self
+            .workspace
+            .as_deref()
+            .filter(|_| self.restore.get())
+            .and_then(Workspace::load);
         let mut app = self.app.borrow_mut();
         if saved.is_none_or(|saved| app.restore(&saved) == 0) {
             app.new_tab();
@@ -70,12 +82,17 @@ impl Controllers {
 
     /// Grava as abas, com a sessão do Claude de cada painel.
     pub fn save_workspace(&self) {
-        save_workspace(&self.app.borrow(), self.workspace.as_deref(), &self.db);
+        save_workspace(
+            &self.app.borrow(),
+            self.workspace.as_deref(),
+            self.restore.get(),
+            &self.db,
+        );
     }
 }
 
-fn save_workspace(app: &App, path: Option<&Path>, db: &Path) {
-    let Some(path) = path else {
+fn save_workspace(app: &App, path: Option<&Path>, restore: bool, db: &Path) {
+    let Some(path) = path.filter(|_| restore) else {
         return;
     };
     let memory = Memory::open(db)
@@ -98,6 +115,13 @@ fn main() -> Result<(), slint::PlatformError> {
     // Com a janela fechada, mas antes de encerrar os terminais (e os Claudes neles).
     controllers.save_workspace();
     result
+}
+
+/// Abre `path` no programa que o Windows associa ao tipo (o Explorer pergunta se não houver).
+fn open_file(path: &Path) {
+    if let Err(e) = std::process::Command::new("explorer").arg(path).spawn() {
+        eprintln!("nemux: não foi possível abrir {}: {e}", path.display());
+    }
 }
 
 /// Medidas atuais da área dos painéis, lidas da interface.
@@ -145,7 +169,9 @@ pub fn init_controllers_with(
         }
     };
     config.apply_theme(ui);
-    let config_restore = config.restore.unwrap_or(true);
+    let restore = Rc::new(Cell::new(config.restore.unwrap_or(true)));
+    ui.set_restore_tabs(restore.get());
+    ui.set_has_config(config_path.is_some());
     ui.set_themes(ModelRc::new(VecModel::from(config::theme_items())));
     ui.set_theme_index(config.theme_index() as i32);
     if config.overrides_theme() {
@@ -190,11 +216,22 @@ pub fn init_controllers_with(
     });
     let app = Rc::new(RefCell::new(app));
 
-    // Escolher um tema aplica na hora a todos os painéis e grava no config.toml.
+    // Menu da engrenagem: tema, fonte e "restaurar abas" valem na hora e vão para o config.toml.
+    let config = Rc::new(RefCell::new(config));
+    let config_path = config_path.map(Path::to_path_buf);
+    let save = {
+        let (weak, config_path) = (ui.as_weak(), config_path.clone());
+        move |what: &str, result: &dyn Fn(&Path) -> Result<(), String>| {
+            if let (Some(ui), Some(path)) = (weak.upgrade(), &config_path)
+                && let Err(e) = result(path)
+            {
+                ui.set_config_error(format!("Não foi possível gravar {what}: {e}").into());
+            }
+        }
+    };
+    let save = Rc::new(save);
     ui.on_theme_chosen({
-        let (app, weak) = (app.clone(), ui.as_weak());
-        let config = RefCell::new(config);
-        let config_path = config_path.map(Path::to_path_buf);
+        let (app, weak, config, save) = (app.clone(), ui.as_weak(), config.clone(), save.clone());
         move |i| {
             let (Some(ui), Some(preset)) = (weak.upgrade(), config::presets().get(i as usize))
             else {
@@ -209,10 +246,50 @@ pub fn init_controllers_with(
                 app.colors = config.terminal_colors();
                 app.render(&ui);
             }
-            if let Some(path) = &config_path
-                && let Err(e) = config::save_theme(path, &preset.name)
-            {
-                ui.set_config_error(format!("Não foi possível gravar o tema: {e}").into());
+            save("o tema", &|path| config::save_theme(path, &preset.name));
+        }
+    });
+    // O tamanho das células muda com a fonte; o `area-resized` redimensiona os terminais.
+    ui.on_font_zoom({
+        let (weak, config, save) = (ui.as_weak(), config.clone(), save.clone());
+        move |step| {
+            let Some(ui) = weak.upgrade() else { return };
+            let mut config = config.borrow_mut();
+            let current = config.font.size.unwrap_or(config::DEFAULT_FONT_SIZE);
+            let size = match step {
+                0 => None,
+                _ => Some((current + step as f32).clamp(6.0, 72.0)),
+            };
+            if size == config.font.size {
+                return;
+            }
+            config.font.size = size;
+            config.apply_theme(&ui);
+            save("a fonte", &|path| config::save_font_size(path, size));
+        }
+    });
+    ui.on_restore_toggled({
+        let (weak, restore, save) = (ui.as_weak(), restore.clone(), save.clone());
+        move |on| {
+            restore.set(on);
+            if let Some(ui) = weak.upgrade() {
+                ui.set_restore_tabs(on);
+            }
+            save("\"restaurar abas\"", &|path| config::save_restore(path, on));
+        }
+    });
+    let opener: Opener = Rc::new(RefCell::new(Box::new(open_file)));
+    ui.on_open_config({
+        let (weak, opener) = (ui.as_weak(), opener.clone());
+        move || {
+            let (Some(ui), Some(path)) = (weak.upgrade(), &config_path) else {
+                return;
+            };
+            match config::ensure_exists(path) {
+                Ok(()) => (opener.borrow())(path),
+                Err(e) => {
+                    ui.set_config_error(format!("Não foi possível criar {e}").into());
+                }
             }
         }
     });
@@ -412,17 +489,20 @@ pub fn init_controllers_with(
     });
 
     // Grava as abas de tempos em tempos, para não perdê-las se o app não fechar direito.
-    let workspace = workspace.filter(|_| config_restore).map(Path::to_path_buf);
+    let workspace = workspace.map(Path::to_path_buf);
     let workspace_timer = slint::Timer::default();
     workspace_timer.start(slint::TimerMode::Repeated, Duration::from_secs(30), {
-        let (app, workspace, db) = (app.clone(), workspace.clone(), db.clone());
-        move || save_workspace(&app.borrow(), workspace.as_deref(), &db)
+        let (app, workspace, restore, db) =
+            (app.clone(), workspace.clone(), restore.clone(), db.clone());
+        move || save_workspace(&app.borrow(), workspace.as_deref(), restore.get(), &db)
     });
 
     Controllers {
         app,
         sessions,
         workspace,
+        restore,
+        opener,
         db,
         _timer: timer,
         _memory_timer: memory_timer,

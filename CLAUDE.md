@@ -44,8 +44,11 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     arquivo com erro vira a configuração padrão e um aviso (`config-error`).
     As cores partem de um tema pronto (`src/themes.toml`, embutido; o primeiro é
     o padrão e tem de bater com `Colors::default()`), e `[colors]`/`[app]` ficam
-    por cima (`Scheme`). A lista "Temas" (`ui/theme-picker.slint`) aplica na hora
-    e grava `theme = "..."` com `toml_edit`, sem mexer no resto do arquivo.
+    por cima (`Scheme`). O menu da engrenagem (`ui/settings-menu.slint`) muda na
+    hora tema (`ui/theme-picker.slint`), fonte (`Ctrl+=`/`-`/`0`) e `restore`, e
+    grava no arquivo com `toml_edit` (`config::edit_file`), sem mexer no resto. A
+    lista de atalhos fica em `ShortcutsCard`: mantenha-a igual à do README.
+    "Abrir config.toml" usa `Controllers::opener` (os testes trocam).
   - `src/workspace.rs`: abas entre execuções (`%APPDATA%\nemux\session.json`):
     árvore de painéis, pasta de cada um (a de quando abriu, ou a que o shell
     informou por OSC 7/9;9) e a sessão do Claude dele. Grava ao fechar a janela
