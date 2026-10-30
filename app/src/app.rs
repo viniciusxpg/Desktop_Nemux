@@ -1077,21 +1077,43 @@ fn update_model<T: Clone + PartialEq + 'static>(model: &VecModel<T>, rows: Vec<T
     }
 }
 
-/// Shell de cada painel: `NEMUX_SHELL` (ex.: `cmd.exe`), o `shell` da configuração ou PowerShell.
+/// Shell de cada painel: `NEMUX_SHELL` (ex.: `cmd.exe`), o `shell` da configuração ou o
+/// padrão do sistema (PowerShell no Windows, `$SHELL` nos outros), na pasta do usuário.
 pub fn shell_command(configured: Option<&str>) -> CommandBuilder {
     let env = std::env::var("NEMUX_SHELL").ok();
-    let shell = env
-        .as_deref()
-        .or(configured)
-        .unwrap_or("powershell.exe -NoLogo");
+    let default = default_shell();
+    let shell = env.as_deref().or(configured).unwrap_or(&default);
     let mut parts = shell.split_whitespace();
-    let mut cmd = CommandBuilder::new(parts.next().unwrap_or("powershell.exe"));
+    let mut cmd = CommandBuilder::new(parts.next().unwrap_or(&default));
     cmd.args(parts);
-    if let Some(home) = std::env::var_os("USERPROFILE") {
+    if let Some(home) = dirs::home_dir() {
         cmd.cwd(home);
     }
-    cmd.env("TERM_PROGRAM", "nemux");
+    terminal_env(&mut cmd);
     cmd
+}
+
+#[cfg(windows)]
+fn default_shell() -> String {
+    "powershell.exe -NoLogo".to_owned()
+}
+
+#[cfg(not(windows))]
+fn default_shell() -> String {
+    std::env::var("SHELL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "/bin/sh".to_owned())
+}
+
+/// Variáveis que dizem aos programas que terminal é este. Fora do Windows, `TERM`
+/// escolhe as sequências que os programas usam; o parser (`vt100`) entende as do xterm.
+pub fn terminal_env(cmd: &mut CommandBuilder) {
+    cmd.env("TERM_PROGRAM", "nemux");
+    if !cfg!(windows) {
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
+    }
 }
 
 fn to_color((r, g, b): Rgb) -> slint::Color {

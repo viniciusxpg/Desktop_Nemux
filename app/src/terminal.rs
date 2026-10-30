@@ -143,6 +143,8 @@ fn percent_decode(s: &str) -> String {
 pub type Parser = vt100::Parser<Callbacks>;
 
 pub struct Terminal {
+    /// Processo que o painel abriu (o shell), se o sistema informar.
+    pid: Option<u32>,
     parser: Arc<Mutex<Parser>>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     master: Box<dyn MasterPty + Send>,
@@ -165,6 +167,7 @@ impl Terminal {
         let mut child = pair.slave.spawn_command(cmd)?;
         drop(pair.slave);
 
+        let pid = child.process_id();
         let killer = child.clone_killer();
         let mut reader = pair.master.try_clone_reader()?;
         let writer = Arc::new(Mutex::new(pair.master.take_writer()?));
@@ -220,11 +223,22 @@ impl Terminal {
         });
 
         Ok(Self {
+            pid,
             parser,
             writer,
             master: pair.master,
             killer,
         })
+    }
+
+    /// Pasta atual do processo do painel, lida do sistema (só no Linux, pelo `/proc`).
+    /// No Windows ela não é visível de fora; lá a pasta vem do shell (OSC 7 / 9;9).
+    pub fn cwd(&self) -> Option<PathBuf> {
+        if cfg!(target_os = "linux") {
+            std::fs::read_link(format!("/proc/{}/cwd", self.pid?)).ok()
+        } else {
+            None
+        }
     }
 
     pub fn write(&self, bytes: &[u8]) {
@@ -698,6 +712,7 @@ mod tests {
     }
 
     /// O ConPTY repassa o sino e o OSC 9 de um programa de verdade.
+    #[cfg(windows)]
     #[test]
     fn real_process_bell_and_osc9() {
         use std::sync::mpsc;
@@ -735,8 +750,15 @@ mod tests {
         use std::time::Duration;
 
         let (tx, rx) = mpsc::channel();
-        let mut cmd = CommandBuilder::new("cmd.exe");
-        cmd.args(["/c", "echo nemux-ok"]);
+        let cmd = if cfg!(windows) {
+            let mut cmd = CommandBuilder::new("cmd.exe");
+            cmd.args(["/c", "echo nemux-ok"]);
+            cmd
+        } else {
+            let mut cmd = CommandBuilder::new("/bin/sh");
+            cmd.args(["-c", "echo nemux-ok"]);
+            cmd
+        };
         let tx = Mutex::new(tx);
         let term = Terminal::spawn(cmd, 10, 40, move |e| {
             let _ = tx.lock().unwrap().send(e);

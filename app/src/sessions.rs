@@ -200,11 +200,20 @@ pub fn resume_command(session: &Session) -> Option<CommandBuilder> {
     resume_in(&session.id, session.cwd.as_ref()?)
 }
 
-/// `claude --resume <id>` num PowerShell na pasta `cwd`; `None` se o id não parece um id.
+/// `claude --resume <id>` num shell na pasta `cwd`, que continua aberto quando o
+/// Claude termina; `None` se o id não parece um id (ele vai para uma linha de comando).
 pub fn resume_in(id: &str, cwd: &Path) -> Option<CommandBuilder> {
     if !valid_id(id) {
         return None;
     }
+    let mut cmd = resume_shell(id);
+    cmd.cwd(cwd);
+    crate::app::terminal_env(&mut cmd);
+    Some(cmd)
+}
+
+#[cfg(windows)]
+fn resume_shell(id: &str) -> CommandBuilder {
     let mut cmd = CommandBuilder::new("powershell.exe");
     cmd.args([
         "-NoLogo",
@@ -212,9 +221,18 @@ pub fn resume_in(id: &str, cwd: &Path) -> Option<CommandBuilder> {
         "-Command",
         &format!("claude --resume {id}"),
     ]);
-    cmd.cwd(cwd);
-    cmd.env("TERM_PROGRAM", "nemux");
-    Some(cmd)
+    cmd
+}
+
+/// `sh` roda o Claude e, quando ele termina, dá lugar ao shell do usuário.
+#[cfg(not(windows))]
+fn resume_shell(id: &str) -> CommandBuilder {
+    let mut cmd = CommandBuilder::new("/bin/sh");
+    cmd.args([
+        "-c",
+        &format!("claude --resume {id}; exec \"${{SHELL:-/bin/sh}}\""),
+    ]);
+    cmd
 }
 
 /// "agora", "há 5 min", "há 3 h", "ontem", "há 4 dias".

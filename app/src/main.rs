@@ -13,7 +13,8 @@ mod selection;
 mod session_view;
 mod sessions;
 mod terminal;
-#[cfg(test)]
+// Rodam cmd.exe de verdade no ConPTY: só no Windows.
+#[cfg(all(test, windows))]
 mod ui_tests;
 mod window;
 mod workspace;
@@ -44,14 +45,14 @@ type Opener = Rc<RefCell<Box<dyn Fn(&Path)>>>;
 pub struct Controllers {
     app: Rc<RefCell<App>>,
     // Lido pelos testes de UI, que trocam a pasta e o comando das sessões.
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg_attr(not(all(test, windows)), allow(dead_code))]
     sessions: Rc<RefCell<SessionsView>>,
     /// Onde as abas são gravadas; `None` não grava nem restaura.
     workspace: Option<PathBuf>,
     /// "Restaurar abas ao abrir" (`restore` no config.toml); o menu muda na hora.
     restore: Rc<Cell<bool>>,
     /// Abre um arquivo no programa padrão do Windows (os testes trocam).
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg_attr(not(all(test, windows)), allow(dead_code))]
     opener: Opener,
     db: PathBuf,
     _timer: slint::Timer,
@@ -167,9 +168,17 @@ fn watch_file_drops(ui: &AppWindow, app: Rc<RefCell<App>>) {
     });
 }
 
-/// Abre `path` no programa que o Windows associa ao tipo (o Explorer pergunta se não houver).
+/// Abre `path` no programa que o sistema associa ao tipo (no Windows, o Explorer
+/// pergunta se não houver nenhum).
 fn open_file(path: &Path) {
-    if let Err(e) = std::process::Command::new("explorer").arg(path).spawn() {
+    let opener = if cfg!(windows) {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    if let Err(e) = std::process::Command::new(opener).arg(path).spawn() {
         eprintln!("nemux: não foi possível abrir {}: {e}", path.display());
     }
 }

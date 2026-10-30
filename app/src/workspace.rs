@@ -67,13 +67,15 @@ impl Workspace {
             let Some(pane) = app.panes.get(&id) else {
                 return SavedPane::default();
             };
+            // A do sistema (Linux) é a mais atual; senão, a que o shell informou.
+            let cwd = || pane.term.cwd().or_else(|| pane.cwd.clone());
             match claude_of(pane) {
                 Some(s) => SavedPane {
-                    cwd: s.cwd.map(PathBuf::from).or_else(|| pane.cwd.clone()),
+                    cwd: s.cwd.map(PathBuf::from).or_else(cwd),
                     claude_session: Some(s.session_id),
                 },
                 None => SavedPane {
-                    cwd: pane.cwd.clone(),
+                    cwd: cwd(),
                     claude_session: None,
                 },
             }
@@ -182,7 +184,14 @@ fn process_alive(pid: u32) -> bool {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn process_alive(pid: u32) -> bool {
+    Path::new(&format!("/proc/{pid}")).exists()
+}
+
+/// Sem um jeito simples de perguntar, conta como vivo (no pior caso, retoma uma
+/// sessão que já fechou).
+#[cfg(not(any(windows, target_os = "linux")))]
 fn process_alive(_pid: u32) -> bool {
     true
 }

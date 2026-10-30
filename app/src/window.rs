@@ -3,6 +3,7 @@
 //! Sem janela de verdade (testes), a janela conta como em primeiro plano, não pisca
 //! e não sabe do ponteiro.
 
+#[cfg(windows)]
 use slint::ComponentHandle;
 
 use crate::AppWindow;

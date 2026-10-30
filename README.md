@@ -10,7 +10,7 @@
 
 ---
 
-O Nemux é um app desktop para Windows, feito em Rust com [Slint](https://slint.dev),
+O Nemux é um app desktop para Windows (e, em teste, Linux), feito em Rust com [Slint](https://slint.dev),
 para rodar vários terminais lado a lado e dar às sessões do
 [Claude Code](https://claude.com/claude-code) uma **memória persistente em comum**.
 
@@ -114,12 +114,33 @@ fecha. Ao fechar o Nemux (e a cada 30 segundos), o app grava as abas em
 
 ## Requisitos
 
-- Windows 10 (1809) ou mais recente.
+- Windows 10 (1809) ou mais recente. No Linux, veja [Linux](#linux) abaixo.
 - [Rust](https://rustup.rs) 1.88 ou mais recente, com a toolchain MSVC.
 - Para o ícone no `.exe`: o compilador de recursos `rc.exe`, que vem com o
   Windows SDK (instalado junto com as Build Tools do Visual Studio). Sem ele o
   app compila normalmente, só sem ícone no Explorer.
 - Para a memória: o [Claude Code](https://claude.com/claude-code).
+
+### Linux
+
+O código compila para Linux, mas **ainda não foi testado numa máquina Linux de
+verdade**: relatos de problemas são bem-vindos. As diferenças em relação ao Windows:
+
+- O shell de cada painel é o seu `$SHELL` (ou `/bin/sh`), com `TERM=xterm-256color`.
+- A pasta de cada painel é lida do `/proc` na hora de gravar as abas: não precisa
+  do snippet de prompt (OSC 7) para o painel voltar na pasta certa.
+- "Retomar sessão" abre `claude --resume` e, quando ele termina, o seu shell.
+- "Abrir config.toml" usa o `xdg-open`. A configuração fica em
+  `~/.config/nemux/config.toml` e o banco em `~/.local/share/nemux/nemux.db`.
+- Os testes de interface rodam `cmd.exe` e só existem no Windows; no Linux,
+  `cargo test` roda os testes da lógica.
+
+Para compilar (Debian/Ubuntu; em outras distribuições, os pacotes equivalentes):
+
+```bash
+sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev
+cargo build --release -p nemux-app -p nemux-mcp
+```
 
 ## Começando
 
@@ -277,7 +298,8 @@ memória usam sempre um banco temporário.
 
 ## Limitações conhecidas
 
-- Só funciona no Windows por enquanto.
+- Feito e testado no Windows; o Linux compila, mas ainda não foi testado de
+  verdade (veja [Linux](#linux)). macOS não foi tentado.
 - Arrastar a seleção além da borda não rola o histórico, e não há triplo clique.
 - `Shift+Enter` envia `ESC CR` (o mesmo que `Alt+Enter`): é o que o Claude Code
   entende como nova linha, e o ConPTY do Windows 10 descarta as codificações

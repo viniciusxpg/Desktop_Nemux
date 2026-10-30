@@ -157,4 +157,14 @@ janela (backend de testes do Slint + renderizador por software):
   restrições, sem espaço entre elas); se isso mudar, o cálculo precisa mudar.
   `Tab::name` (duplo clique) fica no lugar do título do programa e vai para o
   `session.json`.
+- Linux: compila, mas nunca rodou numa máquina Linux. O que muda fica atrás de
+  `cfg`: shell (`app::default_shell`, `$SHELL`), `TERM` (`app::terminal_env`),
+  retomar sessão (`sessions::resume_shell`), abrir arquivo (`xdg-open`), pasta do
+  painel (`Terminal::cwd`, pelo `/proc`) e processo vivo (`workspace::process_alive`).
+  Os testes de UI (`ui_tests`) e os que rodam PowerShell são só do Windows. Para
+  conferir que ainda compila sem uma máquina Linux (sem compilador C para Linux, o
+  SQLite e o fontconfig vêm "do sistema"; o `cargo check` não linka):
+  `LIBSQLITE3_SYS_USE_PKG_CONFIG=1 PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG=<um .bat que
+  só faz echo -lfontconfig> cargo clippy --workspace --all-targets --target
+  x86_64-unknown-linux-gnu`. Apague `target/x86_64-unknown-linux-gnu` depois.
 - O Slint não formata `.slint` com `cargo fmt`: mantenha a indentação à mão.
