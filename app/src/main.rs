@@ -317,6 +317,14 @@ pub fn init_controllers_with(
         let on_change = on_change.clone();
         move |i| on_change(&|app| app.select_tab(i.max(0) as usize))
     });
+    ui.on_rename_tab({
+        let on_change = on_change.clone();
+        move |i, name| on_change(&|app| app.rename_tab(i.max(0) as usize, &name))
+    });
+    ui.on_move_tab({
+        let on_change = on_change.clone();
+        move |from, to| on_change(&|app| app.move_tab(from.max(0) as usize, to.max(0) as usize))
+    });
     ui.on_close_tab({
         let on_change = on_change.clone();
         move |i| on_change(&|app| app.close_tab(i.max(0) as usize))

@@ -27,25 +27,90 @@ export struct TabInfo {
     attention: bool,
 }
 
+// Uma aba. Todas têm a mesma largura (mesmas restrições, sem espaço entre elas):
+// é isso que permite saber sobre qual aba o ponteiro está durante o arraste.
 component TabButton inherits Rectangle {
     in property <string> title;
     in property <bool> active;
     in property <bool> activity;
     in property <bool> attention;
+    // Outra aba sendo arrastada para cá: -1 nada, 0 cai à esquerda, 1 à direita.
+    in property <int> drop-side: -1;
     callback clicked();
     callback close();
+    // Duplo clique abre o campo de nome; Enter (ou clicar fora) grava, Esc desiste.
+    callback renamed(string);
+    callback rename-done();
+    // Arraste: índice da aba sob o ponteiro, contado a partir desta.
+    callback drag-move(int);
+    callback drag-end(int);
+
+    property <bool> editing;
+    property <bool> dragging;
+    property <length> press-x;
+
+    public function start-rename() {
+        root.editing = true;
+        name-input.text = root.title;
+        name-input.focus();
+        name-input.select-all();
+    }
+
+    function finish-rename(save: bool) {
+        if !root.editing {
+            return;
+        }
+        root.editing = false;
+        if save {
+            root.renamed(name-input.text);
+        }
+        root.rename-done();
+    }
+
+    // Quantas abas para a direita (ou esquerda, negativo) o ponteiro está.
+    pure function slots(mouse-x: length) -> int {
+        floor(mouse-x / root.width)
+    }
 
     height: 32px;
     min-width: 120px;
     max-width: 220px;
     horizontal-stretch: 1;
+    opacity: root.dragging ? 0.6 : 1;
     accessible-role: tab;
     accessible-label: root.title;
     accessible-action-default => { root.clicked(); }
     background: active ? Theme.tab-active : (touch.has-hover ? Theme.tab-hover : Theme.tab-bar);
 
+    // A aba é escolhida ao apertar o botão (não ao soltar), para o arraste já
+    // começar com ela ativa.
     touch := TouchArea {
-        clicked => { root.clicked(); }
+        pointer-event(event) => {
+            if event.button != PointerEventButton.left {
+                return;
+            }
+            if event.kind == PointerEventKind.down {
+                root.press-x = self.mouse-x;
+                root.dragging = false;
+                root.clicked();
+            } else if event.kind == PointerEventKind.up && root.dragging {
+                root.dragging = false;
+                root.drag-end(root.slots(self.mouse-x));
+            }
+        }
+        moved => {
+            if self.pressed && (root.dragging || abs(self.mouse-x - root.press-x) > 8px) {
+                root.dragging = true;
+                root.drag-move(root.slots(self.mouse-x));
+            }
+        }
+        double-clicked => { root.start-rename(); }
+    }
+
+    if root.drop-side >= 0: Rectangle {
+        x: root.drop-side == 0 ? 0 : parent.width - self.width;
+        width: 2px;
+        background: Theme.accent;
     }
 
     if active: Rectangle {
@@ -99,6 +164,41 @@ component TabButton inherits Rectangle {
 
             close-touch := TouchArea {
                 clicked => { root.close(); }
+            }
+        }
+    }
+
+    name-box := Rectangle {
+        visible: root.editing;
+        x: 6px;
+        y: 4px;
+        width: parent.width - self.x - 30px;
+        height: parent.height - 8px;
+        border-radius: 3px;
+        border-width: 1px;
+        border-color: Theme.accent;
+        background: Theme.background;
+
+        name-input := TextInput {
+            x: 6px;
+            width: parent.width - 12px;
+            color: Theme.foreground;
+            vertical-alignment: center;
+            single-line: true;
+            // Só com o campo aberto (os testes o acham por aqui).
+            accessible-label: root.editing ? "Nome da aba" : "";
+            accepted => { root.finish-rename(true); }
+            key-pressed(event) => {
+                if event.text == Key.Escape {
+                    root.finish-rename(false);
+                    return accept;
+                }
+                reject
+            }
+            changed has-focus => {
+                if !self.has-focus {
+                    root.finish-rename(true);
+                }
             }
         }
     }
@@ -194,6 +294,9 @@ export component AppWindow inherits Window {
     callback new-tab();
     callback select-tab(int);
     callback close-tab(int);
+    // Nome dado pelo usuário (vazio volta ao título do programa) e nova posição de uma aba.
+    callback rename-tab(int, string);
+    callback move-tab(int, int);
     // Devolve true se a tecla foi tratada.
     callback key-input(string, bool, bool, bool) -> bool;
     // A área dos painéis ou o tamanho da célula mudou.
@@ -310,6 +413,10 @@ export component AppWindow inherits Window {
         }
     }
 
+    // Aba sendo arrastada e a posição onde ela cairia (-1 = nenhum arraste).
+    property <int> drag-from: -1;
+    property <int> drag-to: -1;
+
     measure := Text {
         visible: false;
         text: "MMMMMMMMMM";
@@ -329,11 +436,23 @@ export component AppWindow inherits Window {
                     active: i == root.active-tab;
                     activity: tab.activity;
                     attention: tab.attention;
+                    drop-side: root.drag-from >= 0 && root.drag-to == i && i != root.drag-from ? (i < root.drag-from ? 0 : 1) : -1;
                     clicked => {
                         root.select-tab(i);
                         key-handler.focus();
                     }
                     close => { root.close-tab(i); }
+                    renamed(name) => { root.rename-tab(i, name); }
+                    rename-done => { key-handler.focus(); }
+                    drag-move(slots) => {
+                        root.drag-from = i;
+                        root.drag-to = clamp(i + slots, 0, root.tabs.length - 1);
+                    }
+                    drag-end(slots) => {
+                        root.drag-from = -1;
+                        root.drag-to = -1;
+                        root.move-tab(i, clamp(i + slots, 0, root.tabs.length - 1));
+                    }
                 }
 
                 new-tab-btn := Rectangle {

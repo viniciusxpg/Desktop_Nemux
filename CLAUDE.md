@@ -144,4 +144,10 @@ janela (backend de testes do Slint + renderizador por software):
   PowerShell como Alt+Enter (não executa nada).
 - Os testes de UI que precisam de terminal usam `abrir_com_cmd` (em
   `ui_tests/mod.rs`): `cmd.exe` em vez do PowerShell, inclusive nos painéis novos.
+- Abas (`TabButton`): a aba é escolhida ao **apertar** o botão, não ao soltar, para
+  o arraste já começar com ela ativa. O arraste calcula a aba sob o ponteiro
+  dividindo a posição pela largura da aba: todas têm a mesma largura (mesmas
+  restrições, sem espaço entre elas); se isso mudar, o cálculo precisa mudar.
+  `Tab::name` (duplo clique) fica no lugar do título do programa e vai para o
+  `session.json`.
 - O Slint não formata `.slint` com `cargo fmt`: mantenha a indentação à mão.

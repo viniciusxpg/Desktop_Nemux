@@ -34,6 +34,11 @@ Aba 3: claude ─┘                     ▲
   quiser, e veja vários terminais (ou várias sessões do Claude) ao mesmo tempo.
   Arraste a divisória entre dois painéis para redimensioná-los; um duplo clique
   nela volta a dividir ao meio.
+- **Abas com nome e na ordem que você quiser**: dê duplo clique numa aba para
+  dar um nome a ela ("API", "front"…); o nome fica no lugar do título que o
+  programa define e volta ao reabrir o Nemux (um nome vazio volta ao título do
+  programa). Arraste as abas para reordená-las, ou use `Ctrl+Shift+PageUp` /
+  `Ctrl+Shift+PageDown`.
 - **Seleção e cópia de texto**: arraste para selecionar, dê duplo clique para
   pegar uma palavra ou um caminho de arquivo inteiro.
 - **Busca no histórico** (`Ctrl+Shift+F`): procura um texto na tela e nas 10 mil
@@ -154,6 +159,8 @@ Para remover: `claude mcp remove nemux -s user`.
 |---|---|
 | `Ctrl+Shift+T` | Nova aba |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Próxima / aba anterior |
+| `Ctrl+Shift+PageUp` / `Ctrl+Shift+PageDown` | Levar a aba para a esquerda / direita (também arrastando) |
+| Duplo clique na aba | Renomear a aba (`Enter` grava, `Esc` desiste; vazio volta ao título do programa) |
 | `Alt+Shift+=` | Dividir o painel ao lado (também pelo botão na barra de abas) |
 | `Alt+Shift+-` | Dividir o painel abaixo |
 | `Alt+←` `→` `↑` `↓` | Ir para o painel vizinho (com um painel só, vão para o programa) |

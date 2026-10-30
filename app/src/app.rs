@@ -57,6 +57,8 @@ pub struct Search {
 }
 
 pub struct Tab {
+    /// Nome dado pelo usuário; fica no lugar do título que o programa define.
+    pub name: Option<String>,
     pub layout: Node,
     /// Painel que recebe o teclado.
     pub active: PaneId,
@@ -222,6 +224,7 @@ impl App {
     pub fn new_tab_with(&mut self, cmd: CommandBuilder) {
         if let Some(id) = self.spawn_pane(cmd, self.area()) {
             self.tabs.push(Tab {
+                name: None,
                 layout: Node::Leaf(id),
                 active: id,
             });
@@ -239,6 +242,7 @@ impl App {
             let leaves = layout.leaves();
             let active = leaves.get(tab.active).unwrap_or(&leaves[0]);
             self.tabs.push(Tab {
+                name: tab.name.clone(),
                 active: *active,
                 layout,
             });
@@ -332,6 +336,38 @@ impl App {
         if self.active >= index && self.active > 0 {
             self.active -= 1;
         }
+    }
+
+    /// Dá um nome à aba; um nome vazio volta ao título do programa.
+    pub fn rename_tab(&mut self, index: usize, name: &str) {
+        if let Some(tab) = self.tabs.get_mut(index) {
+            let name = name.trim();
+            tab.name = (!name.is_empty()).then(|| name.to_owned());
+        }
+    }
+
+    /// Leva a aba `from` para a posição `to`; a aba ativa continua a mesma.
+    pub fn move_tab(&mut self, from: usize, to: usize) {
+        let n = self.tabs.len();
+        if from >= n {
+            return;
+        }
+        let to = to.min(n - 1);
+        if from == to {
+            return;
+        }
+        let active = self.active;
+        let tab = self.tabs.remove(from);
+        self.tabs.insert(to, tab);
+        self.active = if active == from {
+            to
+        } else if from < active && active <= to {
+            active - 1
+        } else if to <= active && active < from {
+            active + 1
+        } else {
+            active
+        };
     }
 
     pub fn select_tab(&mut self, index: usize) {
@@ -790,6 +826,11 @@ impl App {
                 };
                 self.focus_direction(dir);
             }
+            // Ctrl+Shift+PageUp/PageDown: leva a aba ativa para a esquerda / direita.
+            (true, true, false, "\u{f72c}") => {
+                self.move_tab(self.active, self.active.saturating_sub(1));
+            }
+            (true, true, false, "\u{f72d}") => self.move_tab(self.active, self.active + 1),
             // Shift+PageUp/PageDown: rola o histórico do painel ativo.
             (false, true, false, "\u{f72c}" | "\u{f72d}") => {
                 if let Some(pane) = self.active_pane() {
@@ -835,10 +876,11 @@ impl App {
                     .filter_map(|id| self.panes.get(id))
                     .collect();
                 TabInfo {
-                    title: self
-                        .panes
-                        .get(&t.active)
-                        .map_or("", |p| p.title.as_str())
+                    title: t
+                        .name
+                        .as_deref()
+                        .or_else(|| self.panes.get(&t.active).map(|p| p.title.as_str()))
+                        .unwrap_or("")
                         .into(),
                     activity: panes.iter().any(|p| p.activity),
                     attention: panes.iter().any(|p| p.attention),

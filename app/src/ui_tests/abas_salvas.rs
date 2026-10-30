@@ -60,6 +60,7 @@ fn grava_e_restaura_abas_paineis_e_claude() {
         // Aba 1: um painel numa pasta que o shell informou.
         estado.new_tab_with(cmd("um"));
         estado.panes.get_mut(&0).unwrap().cwd = Some(pasta_a.clone());
+        estado.rename_tab(0, "API");
         // Aba 2: dois lado a lado, 30% / 70%, com o foco no da esquerda.
         estado.new_tab_with(cmd("dois"));
         assert!(estado.split(Split::Right));
@@ -85,6 +86,10 @@ fn grava_e_restaura_abas_paineis_e_claude() {
     let salvo = Workspace::load(&dir.path().join("session.json")).expect("session.json");
     assert_eq!(salvo.active_tab, 1);
     assert_eq!(salvo.tabs.len(), 2);
+    assert_eq!(
+        (salvo.tabs[0].name.as_deref(), salvo.tabs[1].name.as_deref()),
+        (Some("API"), None)
+    );
     let SavedNode::Pane(um) = &salvo.tabs[0].layout else {
         panic!("a aba 1 tem um painel só");
     };
@@ -112,6 +117,7 @@ fn grava_e_restaura_abas_paineis_e_claude() {
     {
         let estado = c.app.borrow();
         assert_eq!((estado.tabs.len(), estado.active), (2, 1));
+        assert_eq!(estado.tabs[0].name.as_deref(), Some("API"));
         let Node::Split { split, ratio, a, b } = &estado.tabs[1].layout else {
             panic!("a aba 2 continua dividida");
         };

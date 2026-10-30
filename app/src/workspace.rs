@@ -22,6 +22,9 @@ pub struct Workspace {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedTab {
+    /// Nome dado pelo usuário; sem ele, a aba mostra o título do programa.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     /// Painel com o foco, na ordem de leitura dos painéis da aba.
     pub active: usize,
     pub layout: SavedNode,
@@ -79,6 +82,7 @@ impl Workspace {
             .tabs
             .iter()
             .map(|tab| SavedTab {
+                name: tab.name.clone(),
                 active: tab
                     .layout
                     .leaves()
@@ -204,10 +208,12 @@ mod tests {
             active_tab: 1,
             tabs: vec![
                 SavedTab {
+                    name: Some("API".into()),
                     active: 0,
                     layout: pane("C:/a"),
                 },
                 SavedTab {
+                    name: None,
                     active: 1,
                     layout: SavedNode::Split {
                         down: false,
