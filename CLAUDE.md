@@ -144,6 +144,13 @@ janela (backend de testes do Slint + renderizador por software):
   PowerShell como Alt+Enter (não executa nada).
 - Os testes de UI que precisam de terminal usam `abrir_com_cmd` (em
   `ui_tests/mod.rs`): `cmd.exe` em vez do PowerShell, inclusive nos painéis novos.
+- Arquivos soltos na janela: o Slint não repassa o arrastar e soltar de fora, então
+  `watch_file_drops` (`main.rs`) pega `HoveredFile`/`DroppedFile` direto do winit
+  (`on_winit_window_event`, feature `unstable-winit-030`; por isso o `slint` está
+  com `~1.18.1`: essa API pode mudar numa versão menor). O Windows manda um evento
+  por arquivo e sem a posição do ponteiro: os arquivos são juntados num timer de 0 s
+  e o painel é o que está sob `window::cursor_position` (`GetCursorPos`). Nos testes
+  não há winit: eles chamam `Controllers::drop_files`.
 - Abas (`TabButton`): a aba é escolhida ao **apertar** o botão, não ao soltar, para
   o arraste já começar com ela ativa. O arraste calcula a aba sob o ponteiro
   dividindo a posição pela largura da aba: todas têm a mesma largura (mesmas

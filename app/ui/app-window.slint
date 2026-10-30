@@ -288,6 +288,11 @@ export component AppWindow inherits Window {
     // Área onde os painéis são dispostos, e a margem interna de cada painel.
     out property <length> area-width: term-area.width;
     out property <length> area-height: term-area.height;
+    // Canto da área dos painéis na janela (para achar o painel onde um arquivo caiu).
+    out property <length> area-x: term-area.absolute-position.x;
+    out property <length> area-y: term-area.absolute-position.y;
+    // Arrastando arquivos sobre a janela.
+    in property <bool> file-hover;
     out property <length> pane-pad: 6px;
     out property <length> scrollbar-width: 10px;
 
@@ -686,6 +691,18 @@ export component AppWindow inherits Window {
                         // grip.x + mouse-x é o ponteiro na área dos painéis, mesmo com a faixa se movendo.
                         moved => { root.divider-drag(d.index, grip.x + self.mouse-x, grip.y + self.mouse-y); }
                         double-clicked => { root.divider-reset(d.index); }
+                    }
+                }
+
+                if root.file-hover: drop-hint := Rectangle {
+                    background: Theme.background.with-alpha(0.75);
+                    border-width: 2px;
+                    border-color: Theme.accent;
+
+                    Text {
+                        text: "Solte para colar o caminho no painel";
+                        color: Theme.foreground;
+                        font-size: 16px;
                     }
                 }
 

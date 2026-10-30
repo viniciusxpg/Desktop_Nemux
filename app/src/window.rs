@@ -1,6 +1,7 @@
-//! A janela do app no Windows: saber se está em primeiro plano e piscar a barra de
-//! tarefas quando um painel pede atenção. Sem janela de verdade (testes), a janela
-//! conta como em primeiro plano e não pisca.
+//! A janela do app no Windows: saber se está em primeiro plano, piscar a barra de
+//! tarefas quando um painel pede atenção e onde está o ponteiro (arquivos soltos).
+//! Sem janela de verdade (testes), a janela conta como em primeiro plano, não pisca
+//! e não sabe do ponteiro.
 
 use slint::ComponentHandle;
 
@@ -45,6 +46,34 @@ pub fn flash(ui: &AppWindow) {
     };
     // SAFETY: `info` vive durante a chamada e o handle é o da nossa janela.
     unsafe { FlashWindowEx(&info) };
+}
+
+/// Posição do ponteiro na janela, em pixels lógicos. Durante o arrastar e soltar de
+/// arquivos o winit não manda o movimento do ponteiro, então ela é lida do Windows.
+#[cfg(windows)]
+pub fn cursor_position(ui: &AppWindow) -> Option<(f32, f32)> {
+    use slint::winit_030::WinitWindowAccessor;
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    let origin = ui
+        .window()
+        .with_winit_window(|w| w.inner_position().ok())??;
+    let mut p = POINT { x: 0, y: 0 };
+    // SAFETY: `p` vive durante a chamada.
+    if unsafe { GetCursorPos(&mut p) } == 0 {
+        return None;
+    }
+    let scale = ui.window().scale_factor();
+    Some((
+        (p.x - origin.x) as f32 / scale,
+        (p.y - origin.y) as f32 / scale,
+    ))
+}
+
+#[cfg(not(windows))]
+pub fn cursor_position(_ui: &AppWindow) -> Option<(f32, f32)> {
+    None
 }
 
 #[cfg(not(windows))]

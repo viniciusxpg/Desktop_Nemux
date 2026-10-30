@@ -6,6 +6,7 @@
 
 mod abas;
 mod abas_salvas;
+mod arquivos;
 mod avisos;
 mod busca;
 mod config;

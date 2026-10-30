@@ -45,6 +45,9 @@ Aba 3: claude ─┘                     ▲
   linhas de histórico do painel ativo, sem diferenciar maiúsculas, destaca as
   ocorrências e mostra "3 de 17". `Enter` vai para a de cima, `Shift+Enter` para a
   de baixo, e `Esc` fecha.
+- **Arrastar arquivos para o terminal**: solte arquivos do Explorer sobre um
+  painel e os caminhos são colados nele (entre aspas quando têm espaços ou
+  caracteres especiais), prontos para um comando ou para o prompt do Claude.
 - **Shift+Enter** quebra a linha no prompt do Claude Code sem enviar.
 - **Retomar sessões do Claude**: liste as conversas salvas do Claude Code (com
   título, pasta e quando foram usadas) e continue qualquer uma numa aba nova,

@@ -527,6 +527,30 @@ impl App {
         }
     }
 
+    /// Painel sob o ponto (`x`, `y`) da área dos painéis.
+    pub fn pane_at(&self, x: f32, y: f32) -> Option<PaneId> {
+        self.active_rects()
+            .into_iter()
+            .find(|(_, r)| x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h)
+            .map(|(id, _)| id)
+    }
+
+    /// Arquivos soltos na janela: cola os caminhos no painel `pane` (ou no ativo) e
+    /// dá o foco a ele.
+    pub fn drop_files(&mut self, pane: Option<PaneId>, paths: &[PathBuf]) {
+        let Some(pane) = pane.or(self.active_pane_id()) else {
+            return;
+        };
+        if paths.is_empty() {
+            return;
+        }
+        self.focus_pane(pane);
+        if let Some(p) = self.panes.get(&pane) {
+            p.term.scroll_to_bottom();
+            p.term.paste(&dropped_paths(paths));
+        }
+    }
+
     pub fn scroll(&mut self, pane: PaneId, lines: isize) {
         if let Some(p) = self.panes.get(&pane) {
             p.term.scroll(lines);
@@ -1012,6 +1036,25 @@ impl App {
     }
 }
 
+/// Caminhos separados por espaço; entre aspas os que o shell partiria ou interpretaria
+/// (espaços e caracteres especiais do PowerShell e do cmd).
+fn dropped_paths(paths: &[PathBuf]) -> String {
+    paths
+        .iter()
+        .map(|p| {
+            let p = p.to_string_lossy();
+            if p.chars()
+                .any(|c| c.is_whitespace() || "&()[]{};,'`$@#^%!".contains(c))
+            {
+                format!("\"{p}\"")
+            } else {
+                p.into_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Único entre os painéis de todas as execuções do app: processo, painel e instante.
 fn pane_token(id: PaneId) -> String {
     let nanos = std::time::SystemTime::now()
@@ -1072,5 +1115,24 @@ pub fn to_line(runs: &[Run]) -> TermLine {
         .collect();
     TermLine {
         runs: ModelRc::new(VecModel::from(runs)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dropped_paths_quote_only_when_needed() {
+        let paths = [
+            PathBuf::from(r"C:\src\main.rs"),
+            PathBuf::from(r"C:\Meus Documentos\nota.txt"),
+            PathBuf::from(r"C:\tmp\a&b.log"),
+        ];
+        assert_eq!(
+            dropped_paths(&paths),
+            r#"C:\src\main.rs "C:\Meus Documentos\nota.txt" "C:\tmp\a&b.log""#
+        );
+        assert_eq!(dropped_paths(&[]), "");
     }
 }

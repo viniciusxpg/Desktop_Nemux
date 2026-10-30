@@ -80,6 +80,12 @@ impl Controllers {
         app.render(ui);
     }
 
+    /// Arquivos soltos na janela: os caminhos vão para o painel sob o ponteiro
+    /// (`cursor`, na janela) ou, sem ele, para o painel ativo.
+    pub fn drop_files(&self, ui: &AppWindow, paths: &[PathBuf], cursor: Option<(f32, f32)>) {
+        drop_files(ui, &self.app, paths, cursor);
+    }
+
     /// Grava as abas, com a sessão do Claude de cada painel.
     pub fn save_workspace(&self) {
         save_workspace(
@@ -115,6 +121,50 @@ fn main() -> Result<(), slint::PlatformError> {
     // Com a janela fechada, mas antes de encerrar os terminais (e os Claudes neles).
     controllers.save_workspace();
     result
+}
+
+fn drop_files(ui: &AppWindow, app: &RefCell<App>, paths: &[PathBuf], cursor: Option<(f32, f32)>) {
+    let mut app = app.borrow_mut();
+    let pane = cursor.and_then(|(x, y)| app.pane_at(x - ui.get_area_x(), y - ui.get_area_y()));
+    app.drop_files(pane, paths);
+    app.render(ui);
+    ui.invoke_focus_terminal();
+}
+
+/// Arrastar arquivos do Explorer para a janela. O Slint não repassa esses eventos, então
+/// eles vêm direto do winit; sem winit (testes) isto não faz nada.
+fn watch_file_drops(ui: &AppWindow, app: Rc<RefCell<App>>) {
+    use slint::winit_030::winit::event::WindowEvent;
+    use slint::winit_030::{EventResult, WinitWindowAccessor};
+
+    let pending: Rc<RefCell<Vec<PathBuf>>> = Rc::default();
+    let weak = ui.as_weak();
+    ui.window().on_winit_window_event(move |_, event| {
+        let Some(ui) = weak.upgrade() else {
+            return EventResult::Propagate;
+        };
+        match event {
+            WindowEvent::HoveredFile(_) => ui.set_file_hover(true),
+            WindowEvent::HoveredFileCancelled => ui.set_file_hover(false),
+            WindowEvent::DroppedFile(path) => {
+                ui.set_file_hover(false);
+                // Um evento por arquivo, todos seguidos: junta-os e cola de uma vez.
+                let first = pending.borrow().is_empty();
+                pending.borrow_mut().push(path.clone());
+                if first {
+                    let (pending, weak, app) = (pending.clone(), weak.clone(), app.clone());
+                    slint::Timer::single_shot(Duration::ZERO, move || {
+                        let paths = std::mem::take(&mut *pending.borrow_mut());
+                        if let Some(ui) = weak.upgrade() {
+                            drop_files(&ui, &app, &paths, window::cursor_position(&ui));
+                        }
+                    });
+                }
+            }
+            _ => {}
+        }
+        EventResult::Propagate
+    });
 }
 
 /// Abre `path` no programa que o Windows associa ao tipo (o Explorer pergunta se não houver).
@@ -293,6 +343,8 @@ pub fn init_controllers_with(
             }
         }
     });
+
+    watch_file_drops(ui, app.clone());
 
     let weak = ui.as_weak();
     let on_change = {
