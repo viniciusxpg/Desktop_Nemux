@@ -72,7 +72,7 @@ Aba 3: claude ─┘                     ▲
   estavam (isso precisa da memória ligada; veja abaixo).
 
 - **Uso do Claude Code**: os limites do plano (5 horas e semanal) ficam na barra
-  de abas, perto da engrenagem, amarelos a partir de 80% e vermelhos a partir de
+  de abas, com um caranguejo e perto da engrenagem, amarelos a partir de 80% e vermelhos a partir de
   95%; passe o mouse para ver quando cada um zera. Cada painel com o Claude mostra
   no canto quanto do contexto a sessão já ocupou.
 

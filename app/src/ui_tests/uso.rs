@@ -5,7 +5,7 @@ use i_slint_backend_testing::ElementHandle;
 use nemux_memory::{Limit, Memory, Usage, unix_now};
 use slint::Model;
 
-use super::{abrir_com_controllers, achar, cmd, esperar};
+use super::{abrir_com_controllers, achar, capturar, cmd, esperar};
 use crate::AppWindow;
 
 fn botao(app: &AppWindow, label: &str) -> Option<ElementHandle> {
@@ -102,4 +102,22 @@ fn opcao_do_menu_liga_e_desliga_a_barra_do_claude() {
     assert!(!app.get_usage_bar());
     assert!(app.get_config_error().contains("nemux-mcp"));
     assert_eq!(std::fs::read_to_string(&settings).unwrap(), texto);
+}
+
+// Não verifica nada: gera a captura da barra de uso para conferência visual.
+// Fica fora do cargo test normal; rode com `cargo capturas`.
+#[test]
+#[ignore = "só gera capturas; rode com cargo capturas"]
+fn capturas() {
+    let app = super::abrir();
+    let medidor = |label: &str, percent| crate::UsageMeter {
+        label: label.into(),
+        percent,
+    };
+    let medidores = vec![medidor("5h", 62.0), medidor("7d", 84.0)];
+    app.set_usage_meters(slint::ModelRc::new(slint::VecModel::from(medidores)));
+    println!(
+        "{}",
+        capturar(&app, "AppWindow::tab-bar", "uso-barra").display()
+    );
 }

@@ -50,7 +50,10 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     `last-prompt`); os arquivos chegam a vários MB. Esse formato é interno do
     Claude Code e pode mudar: se a lista vier vazia ou sem título, comece por aqui.
   - `src/usage_view.rs`: uso do Claude (o que o `nemux-mcp statusline` grava):
-    limites na barra de abas (`usage-meters`, detalhe em `usage-detail`) e o
+    limites na barra de abas (`usage-meters`, detalhe em `usage-detail`, com o
+    caranguejo em pixel art de `ui/icons/caranguejo.svg`: grade de 16×10 com 8
+    unidades por pixel, pintado com a cor de destaque por `colorize` e mostrado em
+    16×10 px, sem suavizar) e o
     contexto de cada painel (`App::contexts`, pelo `NEMUX_PANE`, em
     `PaneView.context`). Recarrega quando o `data_version` muda e a cada 30 s.
   - `src/claude_settings.rs`: "Uso do Claude na barra" (engrenagem) põe ou tira o

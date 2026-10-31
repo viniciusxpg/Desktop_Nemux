@@ -557,6 +557,23 @@ export component AppWindow inherits Window {
                         padding-right: root.usage-meters.length > 0 ? 10px : 0px;
                         spacing: 12px;
 
+                        // Caranguejo: diz que os números são do Claude.
+                        if root.usage-meters.length > 0: VerticalLayout {
+                            alignment: center;
+
+                            // Pixel art 16×10 (8 unidades do SVG por pixel): um pixel do
+                            // desenho por pixel da tela, sem suavizar.
+                            usage-icon := Image {
+                                width: 16px;
+                                height: 10px;
+                                source: @image-url("icons/caranguejo.svg");
+                                image-rendering: pixelated;
+                                colorize: Theme.accent;
+                                accessible-role: image;
+                                accessible-label: "Uso do Claude";
+                            }
+                        }
+
                         for meter in root.usage-meters: HorizontalLayout {
                             spacing: 5px;
 
