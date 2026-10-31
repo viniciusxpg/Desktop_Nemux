@@ -161,6 +161,9 @@ janela (backend de testes do Slint + renderizador por software):
   `cfg`: shell (`app::default_shell`, `$SHELL`), `TERM` (`app::terminal_env`),
   retomar sessão (`sessions::resume_shell`), abrir arquivo (`xdg-open`), pasta do
   painel (`Terminal::cwd`, pelo `/proc`) e processo vivo (`workspace::process_alive`).
+  No Linux a área dos painéis mede 0 até a janela aparecer: `restore_or_open_tab`
+  espera o `area-resized` (`App::sized`), senão o shell nasce com 1 coluna e o que
+  ele escreve primeiro (um banner do `.bashrc`) fica quebrado.
   Os testes de UI (`ui_tests`) e os que rodam PowerShell são só do Windows. Para
   conferir que ainda compila sem uma máquina Linux (sem compilador C para Linux, o
   SQLite e o fontconfig vêm "do sistema"; o `cargo check` não linka):

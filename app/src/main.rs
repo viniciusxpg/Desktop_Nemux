@@ -41,6 +41,8 @@ slint::include_modules!();
 /// Abre um arquivo no programa padrão; trocável nos testes.
 type Opener = Rc<RefCell<Box<dyn Fn(&Path)>>>;
 
+type PendingOpen = Rc<RefCell<Option<Box<dyn FnOnce()>>>>;
+
 /// Estado do app e os timers que repassam eventos; precisam viver enquanto a janela existir.
 pub struct Controllers {
     app: Rc<RefCell<App>>,
@@ -55,6 +57,8 @@ pub struct Controllers {
     #[cfg_attr(not(all(test, windows)), allow(dead_code))]
     opener: Opener,
     db: PathBuf,
+    /// Abertura das abas à espera de a área dos painéis ter tamanho (ver `App::sized`).
+    pending_open: PendingOpen,
     _timer: slint::Timer,
     _memory_timer: slint::Timer,
     _workspace_timer: slint::Timer,
@@ -67,18 +71,35 @@ impl Controllers {
         app.render(ui);
     }
 
-    /// Reabre as abas da última vez; sem elas, abre uma aba nova.
+    /// Reabre as abas da última vez; sem elas, abre uma aba nova. Se a área dos
+    /// painéis ainda não tem tamanho, espera por ele (`area-resized`).
     pub fn restore_or_open_tab(&self, ui: &AppWindow) {
-        let saved = self
-            .workspace
-            .as_deref()
-            .filter(|_| self.restore.get())
-            .and_then(Workspace::load);
-        let mut app = self.app.borrow_mut();
-        if saved.is_none_or(|saved| app.restore(&saved) == 0) {
-            app.new_tab();
+        let open = {
+            let (app, workspace, restore, weak) = (
+                self.app.clone(),
+                self.workspace.clone(),
+                self.restore.clone(),
+                ui.as_weak(),
+            );
+            move || {
+                let saved = workspace
+                    .as_deref()
+                    .filter(|_| restore.get())
+                    .and_then(Workspace::load);
+                let mut app = app.borrow_mut();
+                if saved.is_none_or(|saved| app.restore(&saved) == 0) {
+                    app.new_tab();
+                }
+                if let Some(ui) = weak.upgrade() {
+                    app.render(&ui);
+                }
+            }
+        };
+        if self.app.borrow().sized() {
+            open();
+        } else {
+            *self.pending_open.borrow_mut() = Some(Box::new(open));
         }
-        app.render(ui);
     }
 
     /// Arquivos soltos na janela: os caminhos vão para o painel sob o ponteiro
@@ -406,12 +427,23 @@ pub fn init_controllers_with(
             })
         }
     });
+    let pending_open: PendingOpen = Rc::default();
     ui.on_area_resized({
         let (on_change, weak) = (on_change.clone(), ui.as_weak());
+        let (app, pending_open) = (app.clone(), pending_open.clone());
         move || {
             let Some(ui) = weak.upgrade() else { return };
             let m = metrics(&ui);
-            on_change(&|app| app.set_metrics(m))
+            if app.borrow().tabs.is_empty() {
+                app.borrow_mut().set_metrics(m);
+                if app.borrow().sized()
+                    && let Some(open) = pending_open.borrow_mut().take()
+                {
+                    open();
+                }
+            } else {
+                on_change(&|app| app.set_metrics(m))
+            }
         }
     });
     ui.on_scroll_lines({
@@ -573,6 +605,7 @@ pub fn init_controllers_with(
         restore,
         opener,
         db,
+        pending_open,
         _timer: timer,
         _memory_timer: memory_timer,
         _workspace_timer: workspace_timer,

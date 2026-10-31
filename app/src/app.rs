@@ -153,6 +153,14 @@ impl App {
         layout::grid_size(rect, m.cell_w, m.cell_h, m.pad, m.scrollbar)
     }
 
+    /// A área dos painéis já tem tamanho para um terminal? No Linux ela mede 0 até a
+    /// janela aparecer, e um shell aberto antes disso escreveria o começo (um banner do
+    /// `.bashrc`, por exemplo) quebrado numa largura menor: o `vt100` não refaz as linhas.
+    pub fn sized(&self) -> bool {
+        let (cols, rows) = self.grid_size(self.area());
+        cols >= MIN_COLS && rows >= MIN_ROWS
+    }
+
     pub fn active_pane_id(&self) -> Option<PaneId> {
         self.tabs.get(self.active).map(|t| t.active)
     }
