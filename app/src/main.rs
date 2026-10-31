@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
+mod claude_settings;
 mod config;
 #[cfg(windows)]
 mod conpty;
@@ -13,6 +14,7 @@ mod selection;
 mod session_view;
 mod sessions;
 mod terminal;
+mod usage_view;
 // Rodam cmd.exe de verdade no ConPTY: só no Windows.
 #[cfg(all(test, windows))]
 mod ui_tests;
@@ -34,6 +36,7 @@ use layout::{PaneId, Split};
 use memory_view::MemoryView;
 use nemux_memory::Memory;
 use session_view::SessionsView;
+use usage_view::UsageView;
 use workspace::Workspace;
 
 slint::include_modules!();
@@ -62,9 +65,20 @@ pub struct Controllers {
     _timer: slint::Timer,
     _memory_timer: slint::Timer,
     _workspace_timer: slint::Timer,
+    _usage_timer: slint::Timer,
+    /// `settings.json` do Claude Code, onde "Uso do Claude na barra" liga a barra de
+    /// status; `None` esconde a opção (os testes não mexem no do usuário).
+    claude_settings: Rc<RefCell<Option<PathBuf>>>,
 }
 
 impl Controllers {
+    /// Mostra "Uso do Claude na barra" no menu, ligado ao `settings.json` em `path`.
+    pub fn use_claude_settings(&self, ui: &AppWindow, path: PathBuf) {
+        ui.set_usage_bar(claude_settings::is_enabled(&path));
+        ui.set_has_claude_settings(true);
+        *self.claude_settings.borrow_mut() = Some(path);
+    }
+
     pub fn open_tab(&self, ui: &AppWindow) {
         let mut app = self.app.borrow_mut();
         app.new_tab();
@@ -223,12 +237,16 @@ fn pane_id(id: i32) -> PaneId {
 /// Registra os callbacks da interface com o banco de memória, a configuração e as
 /// abas salvas padrão.
 pub fn init_controllers(ui: &AppWindow) -> Controllers {
-    init_controllers_with(
+    let controllers = init_controllers_with(
         ui,
         nemux_memory::default_path(),
         Some(&config::default_path()),
         Some(&workspace::default_path()),
-    )
+    );
+    if let Some(path) = claude_settings::default_path() {
+        controllers.use_claude_settings(ui, path);
+    }
+    controllers
 }
 
 /// Registra os callbacks da interface. Não abre nenhuma aba, e o banco de memória só é
@@ -346,6 +364,25 @@ pub fn init_controllers_with(
             config.font.size = size;
             config.apply_theme(&ui);
             save("a fonte", &|path| config::save_font_size(path, size));
+        }
+    });
+    let claude_settings: Rc<RefCell<Option<PathBuf>>> = Rc::default();
+    ui.on_usage_bar_toggled({
+        let (weak, claude_settings) = (ui.as_weak(), claude_settings.clone());
+        move |on| {
+            let (Some(ui), Some(path)) = (weak.upgrade(), claude_settings.borrow().clone()) else {
+                return;
+            };
+            let result = if on {
+                claude_settings::nemux_command()
+                    .and_then(|command| claude_settings::enable(&path, &command))
+            } else {
+                claude_settings::disable(&path)
+            };
+            match result {
+                Ok(()) => ui.set_usage_bar(on),
+                Err(e) => ui.set_config_error(e.into()),
+            }
         }
     });
     ui.on_restore_toggled({
@@ -598,6 +635,33 @@ pub fn init_controllers_with(
         move || save_workspace(&app.borrow(), workspace.as_deref(), restore.get(), &db)
     });
 
+    // Uso do Claude Code: limites na barra de abas e contexto em cada painel.
+    let usage = RefCell::new(UsageView::new(db.clone()));
+    let usage_timer = slint::Timer::default();
+    let poll_usage = {
+        let (app, weak) = (app.clone(), ui.as_weak());
+        move || {
+            let (Some(ui), Some(snap)) = (weak.upgrade(), usage.borrow_mut().poll()) else {
+                return;
+            };
+            ui.set_usage_meters(ModelRc::new(VecModel::from(snap.meters)));
+            ui.set_usage_detail(snap.detail.into());
+            let mut app = app.borrow_mut();
+            if app.contexts != snap.contexts {
+                app.contexts = snap.contexts;
+                if !app.tabs.is_empty() {
+                    app.render(&ui);
+                }
+            }
+        }
+    };
+    poll_usage();
+    usage_timer.start(
+        slint::TimerMode::Repeated,
+        Duration::from_secs(1),
+        poll_usage,
+    );
+
     Controllers {
         app,
         sessions,
@@ -609,5 +673,7 @@ pub fn init_controllers_with(
         _timer: timer,
         _memory_timer: memory_timer,
         _workspace_timer: workspace_timer,
+        _usage_timer: usage_timer,
+        claude_settings,
     }
 }

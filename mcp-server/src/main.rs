@@ -1,7 +1,11 @@
 //! Servidor MCP do Nemux: expõe a memória para as sessões do Claude via stdio.
 //!
 //! Uso: `nemux-mcp [caminho-do-banco]`. Sem argumento, usa `nemux_memory::default_path()`.
+//! `nemux-mcp statusline [caminho-do-banco]` é o comando da barra de status do Claude
+//! Code (`statusline.rs`): grava o uso da sessão para o app mostrar.
 //! Atenção: o stdout é o canal do protocolo, então mensagens de log vão para o stderr.
+
+mod statusline;
 
 use std::sync::{Arc, Mutex};
 
@@ -143,10 +147,15 @@ fn format_entries(entries: &[Entry]) -> String {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let path = std::env::args()
-        .nth(1)
+    let mut args = std::env::args().skip(1).peekable();
+    let statusline = args.next_if(|a| a == "statusline").is_some();
+    let path = args
+        .next()
         .map(Into::into)
         .unwrap_or_else(nemux_memory::default_path);
+    if statusline {
+        return statusline::run(&path);
+    }
     let memory = Memory::open(&path)?;
     eprintln!("nemux-mcp: usando {}", path.display());
 

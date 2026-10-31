@@ -13,6 +13,14 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
   na tabela `claude_panes` a sessão do Claude (`CLAUDE_CODE_SESSION_ID`, que o
   Claude Code passa aos servidores MCP), a pasta e o próprio PID; ao terminar,
   apaga o registro.
+  `nemux-mcp statusline [banco]` (`src/statusline.rs`) é o comando do `statusLine`
+  do Claude Code: lê o JSON do stdin (contexto e `rate_limits` de 5 h e 7 dias),
+  grava em `claude_usage` e devolve a linha da barra do Claude. O Claude o roda
+  por um shell (`claude` → `sh` → comando): o PID gravado é o do ancestral chamado
+  `claude`/`node`, e o app só mostra o contexto enquanto ele vive (o
+  `claude_panes` não serve: depende do MCP registrado e o `/clear` troca a sessão).
+  `save_usage` não grava se nada mudou, senão cada atualização da tela do Claude
+  faria o app recarregar. O JSON é interno do Claude Code e pode mudar.
 - `app/` (`nemux-app`): interface Slint.
   - `src/app.rs`: estado do app (`App`): abas, painéis (cada um com seu
     `Terminal`), seleção, área de transferência, atalhos e `render()`.
@@ -35,6 +43,14 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     começo do arquivo (`cwd`, primeira mensagem) e o fim (`ai-title`,
     `last-prompt`); os arquivos chegam a vários MB. Esse formato é interno do
     Claude Code e pode mudar: se a lista vier vazia ou sem título, comece por aqui.
+  - `src/usage_view.rs`: uso do Claude (o que o `nemux-mcp statusline` grava):
+    limites na barra de abas (`usage-meters`, detalhe em `usage-detail`) e o
+    contexto de cada painel (`App::contexts`, pelo `NEMUX_PANE`, em
+    `PaneView.context`). Recarrega quando o `data_version` muda e a cada 30 s.
+  - `src/claude_settings.rs`: "Uso do Claude na barra" (engrenagem) põe ou tira o
+    `statusLine` no `settings.json` do Claude (`serde_json` com `preserve_order`,
+    para não mexer na ordem). Não troca uma barra que não é do Nemux. Só aparece
+    com `Controllers::use_claude_settings`, que os testes não chamam.
   - `src/session_view.rs`: lista "Retomar sessão" (`ui/session-picker.slint`);
     retomar abre `powershell -NoExit -Command "claude --resume <id>"` na pasta da sessão.
   - `src/config.rs`: `config.toml` do usuário (`%APPDATA%\nemux\config.toml` ou

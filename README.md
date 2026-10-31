@@ -60,13 +60,19 @@ Aba 3: claude ─┘                     ▲
   cores na hora (Nemux, One Half Dark, Dracula, Solarized Dark, Gruvbox Dark,
   Tokyo Night e Rosé Pine); **Fonte** aumenta e diminui o texto (também com
   `Ctrl+=`, `Ctrl+-` e `Ctrl+0`); **Restaurar abas ao abrir** liga e desliga a
-  restauração; **Abrir config.toml** abre o arquivo no editor (e o cria, se ainda
+  restauração; **Uso do Claude na barra** liga o uso do plano na barra de abas
+  (veja abaixo); **Abrir config.toml** abre o arquivo no editor (e o cria, se ainda
   não existir); **Atalhos de teclado** lista os atalhos. Tudo fica salvo no
   `config.toml` para a próxima vez.
 - **Abas restauradas**: ao fechar e abrir o Nemux, as abas voltam como estavam:
   as divisões e seus tamanhos, a aba e o painel com o foco, a pasta de cada painel
   e as **sessões do Claude**, retomadas com `claude --resume` no painel onde
   estavam (isso precisa da memória ligada; veja abaixo).
+
+- **Uso do Claude Code**: os limites do plano (5 horas e semanal) ficam na barra
+  de abas, perto da engrenagem, amarelos a partir de 80% e vermelhos a partir de
+  95%; passe o mouse para ver quando cada um zera. Cada painel com o Claude mostra
+  no canto quanto do contexto a sessão já ocupou.
 
 - **Avisos**: uma aba escondida com saída nova ganha um ponto cinza. Quando um
   programa pede atenção (o sino, ou uma notificação OSC 9, 99 ou 777) sem você
@@ -179,6 +185,26 @@ Para remover: `claude mcp remove nemux -s user`.
 > **Dica:** o Windows trava o `nemux-mcp.exe` enquanto alguma sessão do Claude o
 > usa. Feche essas sessões antes de recompilar o servidor.
 
+### Uso do Claude na barra
+
+Os números vêm da barra de status do Claude Code: a cada atualização, ela roda
+`nemux-mcp statusline`, que grava o uso no banco do Nemux e devolve ao Claude a
+linha dele (modelo e contexto). Para ligar, compile o `nemux-mcp` e marque **Uso do
+Claude na barra** na engrenagem: o Nemux põe o `statusLine` no
+`~/.claude/settings.json` (sem mexer no resto) apontando para o `nemux-mcp` que
+está junto do executável (ou, rodando de `target/debug`, o de `target/release`).
+Se você já tem uma barra de status sua, ele não a troca: tire-a antes. Desmarcar
+tira a do Nemux. À mão, é o mesmo que:
+
+```json
+"statusLine": { "type": "command", "command": "\"C:/caminho/para/nemux-mcp.exe\" statusline" }
+```
+
+Os limites só aparecem para assinantes do Claude (Pro/Max), e só depois da
+primeira resposta de alguma sessão; sem sessões abertas, ficam os últimos números
+até a hora de zerar. Sessões abertas antes de ligar só passam a contar quando o
+Claude Code reler a configuração.
+
 ## Atalhos
 
 | Atalho | Ação |
@@ -277,7 +303,8 @@ nemux/
 │   ├── src/
 │   └── ui/       arquivos .slint e o ícone (ui/icons)
 ├── memory/       nemux-memory: banco SQLite com busca FTS5
-└── mcp-server/   nemux-mcp: servidor MCP (stdio) usado pelo Claude Code
+└── mcp-server/   nemux-mcp: servidor MCP (stdio) usado pelo Claude Code e o
+                  comando da barra de status (uso do plano)
 ```
 
 Detalhes de arquitetura e cuidados de desenvolvimento estão no

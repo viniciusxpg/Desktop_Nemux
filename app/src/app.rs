@@ -110,6 +110,9 @@ pub struct App {
     pub selected_text: Option<String>,
     /// Busca aberta; `None` quando a barra está fechada.
     pub search: Option<Search>,
+    /// Contexto ocupado pela sessão do Claude de cada painel, de 0 a 100, pelo
+    /// `NEMUX_PANE` dele (`usage_view.rs`).
+    pub contexts: HashMap<String, f64>,
 }
 
 impl App {
@@ -141,6 +144,7 @@ impl App {
             dragged: false,
             selected_text: None,
             search: None,
+            contexts: HashMap::new(),
         }
     }
 
@@ -1040,6 +1044,10 @@ impl App {
             rows: pane.rows as i32,
             history: snap.history as i32,
             offset: snap.offset as i32,
+            context: self
+                .contexts
+                .get(&pane.token)
+                .map_or(-1, |c| c.round().clamp(0.0, 100.0) as i32),
         })
     }
 }

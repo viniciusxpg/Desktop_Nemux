@@ -47,6 +47,8 @@ export struct PaneView {
     rows: int,
     history: int,
     offset: int,
+    // Contexto ocupado pela sessão do Claude do painel, de 0 a 100; -1 = sem Claude.
+    context: int,
 }
 
 export component TerminalPane inherits Rectangle {
@@ -230,6 +232,26 @@ export component TerminalPane inherits Rectangle {
                     root.scroll-to(root.pane.history - round(clamp((thumb.y + self.mouse-y - self.grab) / max(1px, scrollbar.free), 0, 1) * root.pane.history));
                 }
             }
+        }
+    }
+
+    // Contexto do Claude no canto de cima, sem pegar o mouse (fica sobre o texto).
+    if root.pane.context >= 0: context-badge := Rectangle {
+        x: root.width - root.scrollbar-width - self.width - 4px;
+        y: 4px;
+        width: context-text.preferred-width + 12px;
+        height: context-text.preferred-height + 4px;
+        border-radius: 3px;
+        background: Theme.tab-bar.with-alpha(0.9);
+        accessible-role: text;
+        accessible-label: "Contexto do Claude: " + root.pane.context + "%";
+
+        context-text := Text {
+            x: 6px;
+            y: 2px;
+            text: "contexto " + root.pane.context + "%";
+            font-size: 11px;
+            color: root.pane.context >= 80 ? Theme.attention : Theme.muted;
         }
     }
 

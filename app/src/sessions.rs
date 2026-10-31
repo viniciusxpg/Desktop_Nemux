@@ -40,13 +40,17 @@ impl Session {
     }
 }
 
-/// Pasta onde o Claude Code guarda as sessões: `CLAUDE_CONFIG_DIR` ou `~/.claude`.
+/// Pasta de configuração do Claude Code: `CLAUDE_CONFIG_DIR` ou `~/.claude`.
+pub fn claude_dir() -> Option<PathBuf> {
+    match std::env::var_os("CLAUDE_CONFIG_DIR") {
+        Some(dir) => Some(PathBuf::from(dir)),
+        None => Some(dirs::home_dir()?.join(".claude")),
+    }
+}
+
+/// Pasta onde o Claude Code guarda as sessões.
 pub fn projects_dir() -> Option<PathBuf> {
-    let base = match std::env::var_os("CLAUDE_CONFIG_DIR") {
-        Some(dir) => PathBuf::from(dir),
-        None => dirs::home_dir()?.join(".claude"),
-    };
-    Some(base.join("projects"))
+    Some(claude_dir()?.join("projects"))
 }
 
 /// As `limit` sessões mais recentes, da mais nova para a mais antiga.

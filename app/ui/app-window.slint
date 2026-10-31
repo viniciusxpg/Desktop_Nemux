@@ -19,6 +19,13 @@ export struct DividerView {
     vertical: bool,
 }
 
+// Um limite do plano do Claude na barra de abas.
+export struct UsageMeter {
+    label: string,
+    // De 0 a 100 (pode passar de 100).
+    percent: float,
+}
+
 export struct TabInfo {
     title: string,
     // Saída nova enquanto a aba estava escondida.
@@ -279,6 +286,13 @@ export component AppWindow inherits Window {
     in property <bool> restore-tabs: true;
     in property <bool> has-config;
 
+    // Uso do Claude Code (usage_view.rs): limites do plano na barra de abas, com o
+    // detalhe ao passar o mouse; e se a barra de status do Claude já manda o uso.
+    in property <[UsageMeter]> usage-meters;
+    in property <string> usage-detail;
+    in property <bool> usage-bar;
+    in property <bool> has-claude-settings;
+
     // Erro ao ler a configuração (ou ao gravar o tema); vazio quando não há.
     in property <string> config-error;
 
@@ -337,6 +351,7 @@ export component AppWindow inherits Window {
     // Fonte: +1 / -1 ponto; 0 volta ao padrão.
     callback font-zoom(int);
     callback restore-toggled(bool);
+    callback usage-bar-toggled(bool);
     callback open-config();
     // Busca: o texto mudou, ir para a ocorrência acima (true) ou abaixo, e fechar.
     callback search-changed(string);
@@ -489,6 +504,56 @@ export component AppWindow inherits Window {
                 // Empurra os botões abaixo para a direita; as abas ficam perto do tamanho natural.
                 Rectangle {
                     horizontal-stretch: 1000;
+                }
+
+                // Limites do plano do Claude; sem dados, não ocupa espaço.
+                usage-box := Rectangle {
+                    accessible-role: text;
+                    accessible-label: root.usage-detail;
+
+                    HorizontalLayout {
+                        padding-left: root.usage-meters.length > 0 ? 8px : 0px;
+                        padding-right: root.usage-meters.length > 0 ? 10px : 0px;
+                        spacing: 12px;
+
+                        for meter in root.usage-meters: HorizontalLayout {
+                            spacing: 5px;
+
+                            Text {
+                                text: meter.label;
+                                color: Theme.muted;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+
+                                Rectangle {
+                                    width: 44px;
+                                    height: 6px;
+                                    border-radius: 3px;
+                                    background: Theme.divider;
+
+                                    Rectangle {
+                                        x: 0;
+                                        width: parent.width * clamp(meter.percent / 100, 0, 1);
+                                        border-radius: 3px;
+                                        background: meter.percent >= 95 ? #e05252 : (meter.percent >= 80 ? Theme.attention : Theme.accent);
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: round(meter.percent) + "%";
+                                color: meter.percent >= 80 ? Theme.foreground : Theme.muted;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    usage-touch := TouchArea { }
                 }
 
                 sessions-btn := Rectangle {
@@ -745,6 +810,25 @@ export component AppWindow inherits Window {
         close => { root.toggle-themes(); }
     }
 
+    // Detalhe dos limites (uso e quando zera), ao passar o mouse sobre eles.
+    if usage-touch.has-hover && root.usage-detail != "": usage-tip := Rectangle {
+        x: max(4px, min(usage-box.x + usage-box.width - self.width, root.width - self.width - 4px));
+        y: tab-bar.height + 2px;
+        width: usage-tip-text.preferred-width + 20px;
+        height: usage-tip-text.preferred-height + 12px;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: Theme.divider;
+        background: Theme.tab-bar;
+
+        usage-tip-text := Text {
+            x: 10px;
+            y: 6px;
+            text: root.usage-detail;
+            color: Theme.foreground;
+        }
+    }
+
     if root.settings-open: settings-menu := SettingsMenu {
         x: 0;
         y: 0;
@@ -754,9 +838,12 @@ export component AppWindow inherits Window {
         anchor-top: tab-bar.height + 2px;
         restore-tabs: root.restore-tabs;
         has-config: root.has-config;
+        usage-bar: root.usage-bar;
+        has-claude-settings: root.has-claude-settings;
         themes => { root.toggle-themes(); }
         font-zoom(step) => { root.font-zoom(step); }
         restore-toggled(on) => { root.restore-toggled(on); }
+        usage-bar-toggled(on) => { root.usage-bar-toggled(on); }
         open-config => {
             root.toggle-settings();
             root.open-config();

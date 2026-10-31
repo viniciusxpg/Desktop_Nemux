@@ -142,11 +142,16 @@ export component SettingsMenu inherits Popup {
     in property <bool> restore-tabs;
     // Há um config.toml (os testes sem configuração não têm).
     in property <bool> has-config;
+    // A barra de status do Claude Code manda o uso ao Nemux; só aparece quando o
+    // settings.json do Claude é conhecido (os testes não têm).
+    in property <bool> usage-bar;
+    in property <bool> has-claude-settings;
 
     callback themes();
     // Passos da fonte: +1, -1; 0 volta ao padrão.
     callback font-zoom(int);
     callback restore-toggled(bool);
+    callback usage-bar-toggled(bool);
     callback open-config();
     callback shortcuts();
 
@@ -207,6 +212,13 @@ export component SettingsMenu inherits Popup {
         checkable: true;
         checked: root.restore-tabs;
         clicked => { root.restore-toggled(!root.restore-tabs); }
+    }
+
+    if root.has-claude-settings: MenuRow {
+        text: "Uso do Claude na barra";
+        checkable: true;
+        checked: root.usage-bar;
+        clicked => { root.usage-bar-toggled(!root.usage-bar); }
     }
 
     Separator { }

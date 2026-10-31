@@ -166,7 +166,7 @@ pub fn command_for(
 }
 
 #[cfg(windows)]
-fn process_alive(pid: u32) -> bool {
+pub fn process_alive(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
     use windows_sys::Win32::System::Threading::{
         GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -185,14 +185,14 @@ fn process_alive(pid: u32) -> bool {
 }
 
 #[cfg(target_os = "linux")]
-fn process_alive(pid: u32) -> bool {
+pub fn process_alive(pid: u32) -> bool {
     Path::new(&format!("/proc/{pid}")).exists()
 }
 
 /// Sem um jeito simples de perguntar, conta como vivo (no pior caso, retoma uma
 /// sessão que já fechou).
 #[cfg(not(any(windows, target_os = "linux")))]
-fn process_alive(_pid: u32) -> bool {
+pub fn process_alive(_pid: u32) -> bool {
     true
 }
 
