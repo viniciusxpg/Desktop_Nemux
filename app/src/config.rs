@@ -252,11 +252,37 @@ impl Config {
         theme.set_muted(scheme.muted.color());
         theme.set_divider(scheme.divider.color());
         theme.set_attention(rgb(scheme.terminal.palette[3]));
-        if let Some(family) = &self.font.family {
-            theme.set_font_family(family.as_str().into());
+        if let Some(family) = self.font.family.as_deref().or(default_font_family()) {
+            theme.set_font_family(family.into());
         }
         theme.set_font_size(self.font.size.unwrap_or(DEFAULT_FONT_SIZE));
     }
+}
+
+/// Fonte sem `[font] family`. No Windows, a de `ui/theme.slint` (Consolas).
+#[cfg(not(target_os = "linux"))]
+fn default_font_family() -> Option<&'static str> {
+    None
+}
+
+/// Fonte sem `[font] family`: a monoespaçada do sistema, segundo o fontconfig. Sem
+/// a Consolas, o Slint cairia numa fonte proporcional (e desalinharia o texto), e
+/// ele não entende o nome genérico "monospace".
+#[cfg(target_os = "linux")]
+fn default_font_family() -> Option<&'static str> {
+    static FAMILY: OnceLock<String> = OnceLock::new();
+    let family = FAMILY.get_or_init(|| {
+        std::process::Command::new("fc-match")
+            .args(["-f", "%{family[0]}", "monospace"])
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .and_then(|out| String::from_utf8(out.stdout).ok())
+            .map(|family| family.trim().to_string())
+            .filter(|family| !family.is_empty())
+            .unwrap_or_else(|| "DejaVu Sans Mono".into())
+    });
+    Some(family)
 }
 
 /// Os temas prontos como a lista da interface os mostra.

@@ -281,7 +281,8 @@ divider = "#3a3a3a"        # espaço entre painéis
 ```
 
 Os valores acima são os padrões (as cores são as do tema Nemux), exceto `shell` e
-`font.family` (o padrão é `powershell.exe -NoLogo` e Consolas 14). As cores de
+`font.family` (o padrão é `powershell.exe -NoLogo` e Consolas 14; no Linux, o seu
+`$SHELL` e a fonte monoespaçada do sistema, a de `fc-match monospace`). As cores de
 cada tema estão em [`app/src/themes.toml`](app/src/themes.toml). Se o arquivo tiver um erro (uma cor mal
 escrita, uma chave desconhecida), o Nemux abre com o padrão e mostra o erro numa
 faixa abaixo das abas.
