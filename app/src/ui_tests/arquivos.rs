@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use super::{abrir_com_cmd, capturar, esperar, esperar_texto, painel};
+use super::{PROMPT_FIM, abrir_com_cmd, capturar, esperar, esperar_texto, painel};
 use crate::Controllers;
 use crate::layout::{PaneId, Split};
 
@@ -28,7 +28,8 @@ fn sem_ponteiro_vai_para_o_painel_ativo() {
         PathBuf::from(r"C:\Meus Documentos\nota.txt"),
     ];
     c.drop_files(&app, &arquivos, None);
-    esperar_linha_com(&c, 0, r#">C:\src\main.rs "C:\Meus Documentos\nota.txt""#);
+    let colado = r#"C:\src\main.rs "C:\Meus Documentos\nota.txt""#;
+    esperar_linha_com(&c, 0, &format!("{PROMPT_FIM}{colado}"));
     assert!(!app.get_file_hover());
 }
 
@@ -49,11 +50,11 @@ fn vai_para_o_painel_sob_o_ponteiro() {
     );
     c.drop_files(&app, &[PathBuf::from(r"C:\tmp\log.txt")], Some(ponto));
     assert_eq!(c.app.borrow().active_pane_id(), Some(0), "ganha o foco");
-    esperar_linha_com(&c, 0, r">C:\tmp\log.txt");
+    esperar_linha_com(&c, 0, &format!(r"{PROMPT_FIM}C:\tmp\log.txt"));
 
     // Fora da área dos painéis (na barra de abas), vai para o ativo.
     c.drop_files(&app, &[PathBuf::from(r"C:\b.txt")], Some((10.0, 5.0)));
-    esperar_linha_com(&c, 0, r">C:\tmp\log.txtC:\b.txt");
+    esperar_linha_com(&c, 0, &format!(r"{PROMPT_FIM}C:\tmp\log.txtC:\b.txt"));
 }
 
 #[test]

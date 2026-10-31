@@ -20,6 +20,7 @@ mod selecao;
 mod sessoes;
 mod temas;
 mod terminal;
+mod uso;
 
 use std::fs::{self, File};
 use std::io::BufWriter;
@@ -119,9 +120,10 @@ pub fn capturar(app: &App, id: &str, nome: &str) -> PathBuf {
     caminho
 }
 
-// --- Terminais de verdade (cmd.exe no ConPTY) ---
+// --- Terminais de verdade (cmd.exe no ConPTY; sh no Linux) ---
 
 /// Um `cmd.exe` que imprime `texto` (se houver) e continua aberto.
+#[cfg(windows)]
 pub fn cmd(texto: &str) -> CommandBuilder {
     let mut cmd = CommandBuilder::new("cmd.exe");
     if texto.is_empty() {
@@ -130,6 +132,57 @@ pub fn cmd(texto: &str) -> CommandBuilder {
         cmd.args(["/k", &format!("echo {texto}")]);
     }
     cmd
+}
+
+/// Um `sh` que imprime `texto` (se houver) e continua aberto. O texto vai como
+/// argumento, sem passar pelo shell: os testes usam caminhos com `\`.
+#[cfg(not(windows))]
+pub fn cmd(texto: &str) -> CommandBuilder {
+    let mut cmd = CommandBuilder::new("sh");
+    if !texto.is_empty() {
+        cmd.args(["-c", "printf '%s\\n' \"$1\"; exec sh", "sh", texto]);
+    }
+    cmd
+}
+
+/// Começo da linha do prompt do shell dos testes (`C:\...>` no cmd, `$ ` no sh).
+#[cfg(windows)]
+pub const PROMPT: &str = "C:";
+#[cfg(not(windows))]
+pub const PROMPT: &str = "$";
+
+/// Fim do prompt, logo antes do que se digita ou cola.
+#[cfg(windows)]
+pub const PROMPT_FIM: &str = ">";
+#[cfg(not(windows))]
+pub const PROMPT_FIM: &str = "$ ";
+
+/// Um shell que imprime "linha 1" a "linha `n`" e continua aberto.
+pub fn cmd_linhas(n: u32) -> CommandBuilder {
+    if cfg!(windows) {
+        let mut cmd = CommandBuilder::new("cmd.exe");
+        cmd.args(["/k", &format!("for /L %i in (1,1,{n}) do @echo linha %i")]);
+        cmd
+    } else {
+        let mut cmd = CommandBuilder::new("sh");
+        let script =
+            format!("i=1; while [ $i -le {n} ]; do echo \"linha $i\"; i=$((i+1)); done; exec sh");
+        cmd.args(["-c", &script]);
+        cmd
+    }
+}
+
+/// Um shell que imprime `texto` e termina.
+pub fn cmd_que_termina(texto: &str) -> CommandBuilder {
+    if cfg!(windows) {
+        let mut cmd = CommandBuilder::new("cmd.exe");
+        cmd.args(["/c", &format!("echo {texto}")]);
+        cmd
+    } else {
+        let mut cmd = CommandBuilder::new("sh");
+        cmd.args(["-c", "printf '%s\\n' \"$1\"", "sh", texto]);
+        cmd
+    }
 }
 
 /// App com controllers e uma aba com `cmd.exe` imprimindo `texto`. Novos painéis

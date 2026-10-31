@@ -1,12 +1,12 @@
-// Seleção com o mouse num terminal de verdade (cmd.exe no ConPTY). Não testa a
+// Seleção com o mouse num terminal de verdade (cmd.exe no ConPTY, sh no Linux). Não testa a
 // cópia em si para não mexer na área de transferência de quem roda os testes.
 
 use slint::Model;
 use slint::platform::{PointerEventButton, WindowEvent};
 
 use super::{
-    abrir_com_cmd, abrir_com_controllers, arrastar, capturar, clicar_em, enviar, esperar_texto,
-    painel, ponto,
+    abrir_com_cmd, abrir_com_controllers, arrastar, capturar, clicar_em, cmd_linhas, elemento,
+    enviar, esperar, esperar_texto, painel, ponto,
 };
 use crate::{AppWindow, Controllers};
 
@@ -80,6 +80,64 @@ fn duplo_clique_seleciona_caminho() {
         texto_selecionado(&controllers).as_deref(),
         Some("C:\\pasta\\arquivo.rs:42")
     );
+}
+
+#[test]
+fn triplo_clique_seleciona_a_linha() {
+    let (app, controllers, linha) = abrir_com_marca();
+    let p = ponto(&app, 0, linha, 3);
+    for _ in 0..3 {
+        clicar_em(&app, p);
+    }
+    assert_eq!(
+        texto_selecionado(&controllers),
+        Some(format!("{MARCA} C:\\pasta\\arquivo.rs:42"))
+    );
+}
+
+#[test]
+fn arrastar_para_cima_do_painel_rola_o_historico() {
+    let (app, c) = abrir_com_cmd("");
+    {
+        let mut estado = c.app.borrow_mut();
+        estado.close_tab(0);
+        estado.new_tab_with(cmd_linhas(80));
+    }
+    let pane = c.app.borrow().active_pane_id().unwrap();
+    let ultima = esperar_texto(&c, pane, "linha 80");
+    assert!(painel(&app, pane).history > 0, "precisa de histórico");
+
+    // Aperta na "linha 80" e leva o ponteiro para cima da área dos painéis, parado:
+    // o timer do arraste rola o histórico até o topo.
+    let de = ponto(&app, pane, ultima, 3);
+    let topo = elemento(&app, "AppWindow::term-area").absolute_position().y;
+    let acima = slint::LogicalPosition::new(de.x, topo - 20.0);
+    let button = PointerEventButton::Left;
+    enviar(&app, WindowEvent::PointerMoved { position: de });
+    enviar(
+        &app,
+        WindowEvent::PointerPressed {
+            position: de,
+            button,
+        },
+    );
+    enviar(&app, WindowEvent::PointerMoved { position: acima });
+    esperar(&c, "o histórico rolar até o topo", |_| {
+        let p = painel(&app, pane);
+        p.offset == p.history
+    });
+    enviar(
+        &app,
+        WindowEvent::PointerReleased {
+            position: acima,
+            button,
+        },
+    );
+
+    // Da coluna 3 da primeira linha do histórico até a coluna 3 da "linha 80".
+    let texto = texto_selecionado(&c).expect("seleção");
+    assert!(texto.starts_with("ha 1\nlinha 2\n"), "{texto:?}");
+    assert!(texto.ends_with("linha 79\nlinh"), "{texto:?}");
 }
 
 #[test]

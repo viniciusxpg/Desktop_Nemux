@@ -122,7 +122,7 @@ janela (backend de testes do Slint + renderizador por software):
   `abrir_com_controllers(caminho)` com um banco temporário. O mesmo vale para o
   `config.toml`: `abrir_com_controllers` não lê nenhum, e os testes de
   configuração (`ui_tests/config.rs`) escrevem um arquivo temporário.
-- Os testes de seleção rodam um `cmd.exe` de verdade no ConPTY.
+- Os testes de seleção rodam um shell de verdade (`cmd.exe` no ConPTY, `sh` no Linux).
 
 ## Cuidados
 
@@ -165,7 +165,10 @@ janela (backend de testes do Slint + renderizador por software):
   `ESC CR` chega ao Node como `\x1b\r` (o Claude Code quebra a linha) e ao
   PowerShell como Alt+Enter (não executa nada).
 - Os testes de UI que precisam de terminal usam `abrir_com_cmd` (em
-  `ui_tests/mod.rs`): `cmd.exe` em vez do PowerShell, inclusive nos painéis novos.
+  `ui_tests/mod.rs`): `cmd.exe` em vez do PowerShell, inclusive nos painéis novos;
+  no Linux, `sh`. Rodam nos dois sistemas: o que muda entre os shells fica nos
+  helpers de lá (`cmd`, `cmd_linhas`, `cmd_que_termina`, `PROMPT`, `PROMPT_FIM`);
+  não escreva comandos do cmd direto num teste.
 - Arquivos soltos na janela: o Slint não repassa o arrastar e soltar de fora, então
   `watch_file_drops` (`main.rs`) pega `HoveredFile`/`DroppedFile` direto do winit
   (`on_winit_window_event`, feature `unstable-winit-030`; por isso o `slint` está
@@ -190,7 +193,8 @@ janela (backend de testes do Slint + renderizador por software):
   No Linux a área dos painéis mede 0 até a janela aparecer: `restore_or_open_tab`
   espera o `area-resized` (`App::sized`), senão o shell nasce com 1 coluna e o que
   ele escreve primeiro (um banner do `.bashrc`) fica quebrado.
-  Os testes de UI (`ui_tests`) e os que rodam PowerShell são só do Windows. Para
+  Os testes de UI rodam no Linux também (com `sh`); só os que rodam PowerShell
+  (fora dos `ui_tests`) e o ConPTY são do Windows. Para
   conferir que ainda compila sem uma máquina Linux (sem compilador C para Linux, o
   SQLite e o fontconfig vêm "do sistema"; o `cargo check` não linka):
   `LIBSQLITE3_SYS_USE_PKG_CONFIG=1 PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG=<um .bat que

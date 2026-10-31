@@ -56,6 +56,7 @@ fn mostrar(app: &AppWindow, ansi: &str) {
         rows: rows as i32,
         history: 0,
         offset: 0,
+        context: -1,
     };
     app.set_panes(ModelRc::new(VecModel::from(vec![view])));
 }

@@ -1,26 +1,19 @@
-// Rolagem do histórico: roda do mouse e barra de rolagem, com um PowerShell de
+// Rolagem do histórico: roda do mouse e barra de rolagem, com um shell de
 // verdade que imprime mais linhas do que cabem na tela.
 
-use portable_pty::CommandBuilder;
 use slint::LogicalPosition;
 use slint::platform::{PointerEventButton, WindowEvent};
 
 use super::{
-    abrir_com_cmd, achar, capturar, elemento, enviar, esperar, esperar_texto, painel, ponto,
+    abrir_com_cmd, achar, capturar, cmd_linhas, elemento, enviar, esperar, esperar_texto, painel,
+    ponto,
 };
 use crate::{AppWindow, Controllers};
 
-/// Aba com um PowerShell que imprimiu "linha 1" a "linha 80"; espera o histórico encher.
+/// Aba com um shell que imprimiu "linha 1" a "linha 80"; espera o histórico encher.
 fn abrir_com_historico() -> (AppWindow, Controllers) {
     let (app, c) = abrir_com_cmd("");
-    let mut ps = CommandBuilder::new("powershell.exe");
-    ps.args([
-        "-NoLogo",
-        "-NoProfile",
-        "-NoExit",
-        "-Command",
-        "1..80 | % { 'linha ' + $_ }",
-    ]);
+    let ps = cmd_linhas(80);
     {
         let mut estado = c.app.borrow_mut();
         estado.close_tab(0);

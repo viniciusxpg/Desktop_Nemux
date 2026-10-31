@@ -57,8 +57,11 @@ fn grava_e_restaura_abas_paineis_e_claude() {
     let c = ligar(&app, dir.path(), None);
     {
         let mut estado = c.app.borrow_mut();
-        // Aba 1: um painel numa pasta que o shell informou.
-        estado.new_tab_with(cmd("um"));
+        // Aba 1: um painel numa pasta que o shell informou (no Linux, a pasta é
+        // lida do processo: ele já abre nela).
+        let mut um = cmd("um");
+        um.cwd(&pasta_a);
+        estado.new_tab_with(um);
         estado.panes.get_mut(&0).unwrap().cwd = Some(pasta_a.clone());
         estado.rename_tab(0, "API");
         // Aba 2: dois lado a lado, 30% / 70%, com o foco no da esquerda.

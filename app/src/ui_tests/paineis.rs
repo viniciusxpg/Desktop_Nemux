@@ -3,8 +3,8 @@
 use slint::{ComponentHandle, Model};
 
 use super::{
-    ALTURA, LARGURA, abrir_com_cmd, arrastar, capturar, clicar_em, cmd, esperar, esperar_texto,
-    painel, ponto,
+    ALTURA, LARGURA, PROMPT, abrir_com_cmd, arrastar, capturar, clicar_em, cmd, cmd_que_termina,
+    esperar, esperar_texto, painel, ponto,
 };
 use crate::AppWindow;
 
@@ -89,7 +89,7 @@ fn teclado_vai_para_o_painel_ativo() {
     let (app, c) = abrir_com_cmd("esquerdo");
     esperar_texto(&c, 0, "esquerdo");
     app.invoke_split_right();
-    let linha = esperar_texto(&c, 1, "C:");
+    let linha = esperar_texto(&c, 1, PROMPT);
 
     // Clicar no painel da esquerda o torna ativo.
     clicar_em(&app, ponto(&app, 0, linha, 2));
@@ -115,10 +115,12 @@ fn selecionar_no_painel_da_direita() {
     let (app, c) = abrir_com_cmd("um");
     esperar_texto(&c, 0, "um");
     app.invoke_split_right();
-    let linha = esperar_texto(&c, 1, "C:");
+    let linha = esperar_texto(&c, 1, PROMPT);
 
     arrastar(&app, ponto(&app, 1, linha, 0), ponto(&app, 1, linha, 1));
-    assert_eq!(c.app.borrow().selected_text.as_deref(), Some("C:"));
+    // As duas primeiras colunas: "C:" no cmd, "$ " no sh.
+    let selecionado = c.app.borrow().selected_text.clone();
+    assert_eq!(selecionado.as_deref().map(str::trim_end), Some(PROMPT));
     assert_eq!(painel(&app, 1).selection.row_count(), 1);
     assert_eq!(painel(&app, 0).selection.row_count(), 0);
 }
@@ -149,11 +151,7 @@ fn painel_cujo_processo_termina_some() {
     esperar(&c, "o primeiro painel", |_| {
         app.get_panes().row_count() == 1
     });
-    c.app.borrow_mut().shell = Box::new(|| {
-        let mut cmd = portable_pty::CommandBuilder::new("cmd.exe");
-        cmd.args(["/c", "echo tchau"]);
-        cmd
-    });
+    c.app.borrow_mut().shell = Box::new(|| cmd_que_termina("tchau"));
     app.invoke_split_down();
     assert_eq!(ids(&app), [0, 1]);
 
@@ -199,13 +197,13 @@ fn capturas() {
     let (app, c) = abrir_com_cmd("painel da esquerda");
     esperar_texto(&c, 0, "painel da esquerda");
     app.invoke_split_right();
-    esperar_texto(&c, 1, "C:");
+    esperar_texto(&c, 1, PROMPT);
     digitar(&app, "echo painel de cima\n");
     esperar_texto(&c, 1, "painel de cima");
     app.invoke_split_down();
-    esperar_texto(&c, 2, "C:");
-    digitar(&app, "dir /b C:\\Windows\\System32\\drivers\\etc\n");
-    esperar_texto(&c, 2, "hosts");
+    esperar_texto(&c, 2, PROMPT);
+    digitar(&app, "echo painel de baixo\n");
+    esperar_texto(&c, 2, "painel de baixo");
     app.invoke_focus_terminal();
     println!(
         "{}",

@@ -5,14 +5,14 @@ use portable_pty::CommandBuilder;
 use slint::platform::{Key, WindowEvent};
 use slint::{Model, SharedString};
 
-use super::{abrir_com_cmd, capturar, elemento, enviar, esperar, esperar_texto, painel};
+use super::{
+    abrir_com_cmd, capturar, cmd_linhas, elemento, enviar, esperar, esperar_texto, painel,
+};
 use crate::{AppWindow, Controllers};
 
-/// Um `cmd.exe` com 80 linhas numeradas: a maior parte vai para o histórico.
+/// Um shell com 80 linhas numeradas: a maior parte vai para o histórico.
 fn linhas() -> CommandBuilder {
-    let mut cmd = CommandBuilder::new("cmd.exe");
-    cmd.args(["/k", "for /L %i in (1,1,80) do @echo linha %i"]);
-    cmd
+    cmd_linhas(80)
 }
 
 fn cenario() -> (AppWindow, Controllers) {

@@ -142,8 +142,7 @@ problemas são bem-vindos. As diferenças em relação ao Windows:
 - "Retomar sessão" abre `claude --resume` e, quando ele termina, o seu shell.
 - "Abrir config.toml" usa o `xdg-open`. A configuração fica em
   `~/.config/nemux/config.toml` e o banco em `~/.local/share/nemux/nemux.db`.
-- Os testes de interface rodam `cmd.exe` e só existem no Windows; no Linux,
-  `cargo test` roda os testes da lógica.
+- Os testes de interface rodam com `sh` no lugar do `cmd.exe`.
 
 Para compilar (Debian/Ubuntu; em outras distribuições, os pacotes equivalentes):
 
@@ -325,7 +324,7 @@ cargo fmt --all
 ```
 
 Os testes de interface rodam no backend de testes do Slint, sem janela. Os
-testes de seleção abrem um `cmd.exe` de verdade no ConPTY, e os do painel de
+testes de seleção abrem um shell de verdade (`cmd.exe` no ConPTY, `sh` no Linux), e os do painel de
 memória usam sempre um banco temporário.
 
 ## Limitações conhecidas

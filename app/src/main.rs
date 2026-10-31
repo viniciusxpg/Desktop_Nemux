@@ -15,8 +15,8 @@ mod session_view;
 mod sessions;
 mod terminal;
 mod usage_view;
-// Rodam cmd.exe de verdade no ConPTY: só no Windows.
-#[cfg(all(test, windows))]
+// Os que precisam de terminal rodam cmd.exe no ConPTY (sh no Linux).
+#[cfg(test)]
 mod ui_tests;
 mod window;
 mod workspace;
