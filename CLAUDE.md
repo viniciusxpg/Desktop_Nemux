@@ -123,6 +123,10 @@ janela (backend de testes do Slint + renderizador por software):
   `config.toml`: `abrir_com_controllers` não lê nenhum, e os testes de
   configuração (`ui_tests/config.rs`) escrevem um arquivo temporário.
 - Os testes de seleção rodam um shell de verdade (`cmd.exe` no ConPTY, `sh` no Linux).
+- No backend de testes, uma linha do terminal atualizada várias vezes (digitar
+  num painel) pode ficar com o texto antigo na árvore do Slint, embora o modelo
+  (`PaneView.lines`) esteja certo; no app real não acontece. As asserções leem o
+  modelo e não são afetadas; o `capturar` regrava cada linha antes da foto.
 
 ## Cuidados
 

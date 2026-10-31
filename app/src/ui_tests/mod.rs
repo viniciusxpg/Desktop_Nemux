@@ -85,6 +85,14 @@ pub fn medir(app: &App, id: &str) -> String {
 
 // Renderiza a janela e salva só o retângulo do elemento.
 pub fn capturar(app: &App, id: &str, nome: &str) -> PathBuf {
+    // No backend de testes, uma linha do terminal atualizada várias vezes pode
+    // ficar com um texto antigo na tela, embora o modelo esteja certo (no app real
+    // não acontece). Regravar cada linha com o próprio valor põe a tela em dia.
+    for painel in app.get_panes().iter() {
+        for (linha, valor) in painel.lines.iter().enumerate() {
+            painel.lines.set_row_data(linha, valor);
+        }
+    }
     let tela = app.window().take_snapshot().expect("renderizar a janela");
     let e = elemento(app, id);
     let escala = app.window().scale_factor();
