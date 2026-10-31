@@ -106,7 +106,7 @@ impl SessionsView {
 fn display_path(path: &Path, home: Option<&Path>) -> String {
     match home.and_then(|h| path.strip_prefix(h).ok()) {
         Some(rest) if rest.as_os_str().is_empty() => "~".into(),
-        Some(rest) => format!("~\\{}", rest.display()),
+        Some(rest) => format!("~{}{}", std::path::MAIN_SEPARATOR, rest.display()),
         None => path.display().to_string(),
     }
 }
@@ -117,12 +117,13 @@ mod tests {
 
     #[test]
     fn home_becomes_tilde() {
-        let home = Path::new("C:\\Users\\Ana");
-        assert_eq!(
-            display_path(Path::new("C:\\Users\\Ana\\proj"), Some(home)),
-            "~\\proj"
-        );
+        #[cfg(windows)]
+        let (home, proj, fora) = ("C:\\Users\\Ana", "~\\proj", "D:\\x");
+        #[cfg(not(windows))]
+        let (home, proj, fora) = ("/home/ana", "~/proj", "/tmp/x");
+        let home = Path::new(home);
+        assert_eq!(display_path(&home.join("proj"), Some(home)), proj);
         assert_eq!(display_path(home, Some(home)), "~");
-        assert_eq!(display_path(Path::new("D:\\x"), Some(home)), "D:\\x");
+        assert_eq!(display_path(Path::new(fora), Some(home)), fora);
     }
 }

@@ -235,6 +235,16 @@ fn resume_shell(id: &str) -> CommandBuilder {
     cmd
 }
 
+/// O último argumento do comando de `resume_in`, para os testes.
+#[cfg(test)]
+pub fn resume_line(id: &str) -> String {
+    if cfg!(windows) {
+        format!("claude --resume {id}")
+    } else {
+        format!("claude --resume {id}; exec \"${{SHELL:-/bin/sh}}\"")
+    }
+}
+
 /// "agora", "há 5 min", "há 3 h", "ontem", "há 4 dias".
 pub fn relative_time(modified: SystemTime, now: SystemTime) -> String {
     let secs = now.duration_since(modified).map_or(0, |d| d.as_secs());
@@ -401,7 +411,7 @@ mod tests {
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
-        assert_eq!(argv.last().unwrap(), &format!("claude --resume {ID_A}"));
+        assert_eq!(argv.last().unwrap(), &resume_line(ID_A));
 
         assert!(
             resume_command(&Session {

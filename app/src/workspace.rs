@@ -261,7 +261,10 @@ mod tests {
         };
         let resume = sessions::resume_in;
         let cmd = command_for(&claude, &shell, &resume);
-        assert_eq!(argv(&cmd).last().unwrap(), "claude --resume 0123abcd-0000");
+        assert_eq!(
+            argv(&cmd).last().unwrap(),
+            &sessions::resume_line("0123abcd-0000")
+        );
         assert_eq!(cmd.get_cwd().map(PathBuf::from), Some(pasta.clone()));
 
         // Pasta que não existe mais: shell na pasta padrão, sem retomar.

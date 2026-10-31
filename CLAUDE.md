@@ -157,7 +157,9 @@ janela (backend de testes do Slint + renderizador por software):
   restrições, sem espaço entre elas); se isso mudar, o cálculo precisa mudar.
   `Tab::name` (duplo clique) fica no lugar do título do programa e vai para o
   `session.json`.
-- Linux: compila, mas nunca rodou numa máquina Linux. O que muda fica atrás de
+- Linux: roda (testado no Linux Mint; `cargo test --workspace` passa). Ainda não
+  conferidos lá: arrastar arquivos, `window::flash`/`is_foreground` e a roda do
+  mouse no Claude Code. O que muda fica atrás de
   `cfg`: shell (`app::default_shell`, `$SHELL`), `TERM` (`app::terminal_env`),
   retomar sessão (`sessions::resume_shell`), abrir arquivo (`xdg-open`), pasta do
   painel (`Terminal::cwd`, pelo `/proc`) e processo vivo (`workspace::process_alive`).

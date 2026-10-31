@@ -123,8 +123,10 @@ fecha. Ao fechar o Nemux (e a cada 30 segundos), o app grava as abas em
 
 ### Linux
 
-O código compila para Linux, mas **ainda não foi testado numa máquina Linux de
-verdade**: relatos de problemas são bem-vindos. As diferenças em relação ao Windows:
+O Nemux já roda no Linux (testado no Linux Mint): os terminais abrem e os testes
+da lógica passam. Ainda não foram conferidos lá o arrastar de arquivos, o aviso
+piscando na barra de tarefas e a roda do mouse dentro do Claude Code: relatos de
+problemas são bem-vindos. As diferenças em relação ao Windows:
 
 - O shell de cada painel é o seu `$SHELL` (ou `/bin/sh`), com `TERM=xterm-256color`.
 - A pasta de cada painel é lida do `/proc` na hora de gravar as abas: não precisa
@@ -298,8 +300,8 @@ memória usam sempre um banco temporário.
 
 ## Limitações conhecidas
 
-- Feito e testado no Windows; o Linux compila, mas ainda não foi testado de
-  verdade (veja [Linux](#linux)). macOS não foi tentado.
+- Feito no Windows; no Linux roda, mas parte dos recursos ainda não foi conferida
+  (veja [Linux](#linux)). macOS não foi tentado.
 - Arrastar a seleção além da borda não rola o histórico, e não há triplo clique.
 - `Shift+Enter` envia `ESC CR` (o mesmo que `Alt+Enter`): é o que o Claude Code
   entende como nova linha, e o ConPTY do Windows 10 descarta as codificações
