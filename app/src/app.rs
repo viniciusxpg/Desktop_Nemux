@@ -25,6 +25,10 @@ const QUIET_START: Duration = Duration::from_secs(3);
 /// Menor painel que uma divisão pode criar.
 const MIN_COLS: u16 = 20;
 const MIN_ROWS: u16 = 4;
+/// Um clique até este tempo depois do duplo clique, na mesma linha, é um triplo clique.
+const TRIPLE_CLICK: Duration = Duration::from_millis(500);
+/// Linhas roladas por passo, no máximo, ao arrastar a seleção além da borda.
+const AUTOSCROLL_MAX: i32 = 10;
 
 pub struct Pane {
     pub title: String,
@@ -106,6 +110,11 @@ pub struct App {
     selecting: bool,
     /// O ponteiro saiu da célula inicial (um clique simples não seleciona).
     dragged: bool,
+    /// Última posição do ponteiro no arraste, em células do painel; pode estar fora
+    /// dele (acima ou abaixo, o histórico rola: `autoscroll`).
+    drag_point: (i32, i32),
+    /// Último duplo clique (quando, painel e linha da tela), para achar o triplo.
+    last_word: Option<(Instant, PaneId, u16)>,
     /// Texto capturado quando a seleção terminou; é o que será copiado.
     pub selected_text: Option<String>,
     /// Busca aberta; `None` quando a barra está fechada.
@@ -142,6 +151,8 @@ impl App {
             selection: None,
             selecting: false,
             dragged: false,
+            drag_point: (0, 0),
+            last_word: None,
             selected_text: None,
             search: None,
             contexts: HashMap::new(),
@@ -611,26 +622,80 @@ impl App {
 
     pub fn start_selection(&mut self, pane: PaneId, row: i32, col: i32) {
         self.focus_pane(pane);
-        let Some((row, col)) = self.clamp_cell(pane, row, col) else {
+        let (Some((r, c)), Some(p)) = (self.clamp_cell(pane, row, col), self.panes.get(&pane))
+        else {
             return;
         };
-        self.selection = Some((pane, Selection::at(row, col)));
+        // Triplo clique: o terceiro clique logo depois do duplo, na mesma linha.
+        let triple = self
+            .last_word
+            .take()
+            .is_some_and(|(at, p, line)| p == pane && line == r && at.elapsed() < TRIPLE_CLICK);
+        if triple {
+            let sel = p.term.with_screen(|screen| Selection::line(screen, r));
+            self.selection = Some((pane, sel));
+            self.selecting = false;
+            self.capture_selection();
+            return;
+        }
+        let line = p.term.with_screen(search::top_line) + r as usize;
+        self.selection = Some((pane, Selection::at(line, c)));
         self.selected_text = None;
         self.selecting = true;
         self.dragged = false;
+        self.drag_point = (row, col);
     }
 
     pub fn move_selection(&mut self, row: i32, col: i32) {
-        let Some((pane, _)) = self.selection else {
+        self.drag_point = (row, col);
+        self.update_selection_head();
+    }
+
+    /// Leva a ponta da seleção para a célula sob o ponteiro (a mais perto, se ele
+    /// está fora do painel).
+    fn update_selection_head(&mut self) {
+        let (true, Some((pane, _))) = (self.selecting, self.selection) else {
             return;
         };
-        let Some(cell) = self.clamp_cell(pane, row, col) else {
+        let (row, col) = self.drag_point;
+        let (Some((row, col)), Some(p)) = (self.clamp_cell(pane, row, col), self.panes.get(&pane))
+        else {
             return;
         };
-        if let (true, Some((_, sel))) = (self.selecting, self.selection.as_mut()) {
-            sel.head = cell;
+        let top = p.term.with_screen(search::top_line);
+        if let Some((_, sel)) = self.selection.as_mut() {
+            sel.head = (top + row as usize, col);
             self.dragged |= sel.head != sel.anchor;
         }
+    }
+
+    /// Arrastando a seleção acima ou abaixo do painel, rola o histórico (mais rápido
+    /// quanto mais longe da borda) e estende a seleção. Um timer chama isto enquanto
+    /// o botão está apertado, porque o ponteiro parado fora do painel não gera eventos.
+    /// Devolve se rolou.
+    pub fn autoscroll(&mut self) -> bool {
+        let (true, Some((pane, _))) = (self.selecting, self.selection) else {
+            return false;
+        };
+        let Some(p) = self.panes.get(&pane) else {
+            return false;
+        };
+        let (row, rows) = (self.drag_point.0, p.rows as i32);
+        let lines = if row < 0 {
+            (-row).min(AUTOSCROLL_MAX)
+        } else if row >= rows {
+            -(row - rows + 1).min(AUTOSCROLL_MAX)
+        } else {
+            return false;
+        };
+        let offset = |p: &Pane| p.term.with_screen(|screen| screen.scrollback());
+        let before = offset(p);
+        p.term.scroll(lines as isize);
+        if offset(p) == before {
+            return false; // já no começo ou no fim do histórico
+        }
+        self.update_selection_head();
+        true
     }
 
     pub fn end_selection(&mut self) {
@@ -656,6 +721,7 @@ impl App {
             .with_screen(|screen| Selection::word(screen, row, col));
         self.selection = Some((pane, sel));
         self.selecting = false;
+        self.last_word = Some((Instant::now(), pane, row));
         self.capture_selection();
     }
 
@@ -664,7 +730,7 @@ impl App {
             Some((pane, sel)) => self
                 .panes
                 .get(&pane)
-                .map(|p| p.term.with_screen(|s| sel.text(s)))
+                .map(|p| p.term.with_screen_mut(|s| sel.text(s)))
                 .unwrap_or_default(),
             None => String::new(),
         };
@@ -1016,7 +1082,7 @@ impl App {
 
         let (cursor_row, cursor_col) = snap.cursor.map_or((-1, 0), |(r, c)| (r as i32, c as i32));
         let sel_rects: Vec<SelRect> = selection
-            .map(|s| s.rects(pane.cols))
+            .map(|s| s.rects(pane.cols, snap.history - snap.offset, pane.rows))
             .unwrap_or_default()
             .into_iter()
             .map(to_rect)

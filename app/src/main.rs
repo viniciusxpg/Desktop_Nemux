@@ -503,9 +503,31 @@ pub fn init_controllers_with(
         let on_change = on_change.clone();
         move |pane, offset| on_change(&|app| app.scroll_to(pane_id(pane), offset.max(0) as usize))
     });
+    // Arrastando a seleção para fora do painel, rola o histórico mesmo com o ponteiro parado.
+    let autoscroll = Rc::new(slint::Timer::default());
     ui.on_select_start({
-        let on_change = on_change.clone();
-        move |pane, row, col| on_change(&|app| app.start_selection(pane_id(pane), row, col))
+        let (on_change, autoscroll, app, weak) = (
+            on_change.clone(),
+            autoscroll.clone(),
+            app.clone(),
+            ui.as_weak(),
+        );
+        move |pane, row, col| {
+            on_change(&|app| app.start_selection(pane_id(pane), row, col));
+            let (app, weak) = (app.clone(), weak.clone());
+            autoscroll.start(
+                slint::TimerMode::Repeated,
+                Duration::from_millis(50),
+                move || {
+                    let mut app = app.borrow_mut();
+                    if let Some(ui) = weak.upgrade()
+                        && app.autoscroll()
+                    {
+                        app.render(&ui);
+                    }
+                },
+            );
+        }
     });
     ui.on_select_move({
         let on_change = on_change.clone();
@@ -513,7 +535,10 @@ pub fn init_controllers_with(
     });
     ui.on_select_end({
         let on_change = on_change.clone();
-        move || on_change(&|app| app.end_selection())
+        move || {
+            autoscroll.stop();
+            on_change(&|app| app.end_selection())
+        }
     });
     ui.on_select_word({
         let on_change = on_change.clone();

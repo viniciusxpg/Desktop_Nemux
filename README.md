@@ -39,8 +39,10 @@ Aba 3: claude ─┘                     ▲
   programa define e volta ao reabrir o Nemux (um nome vazio volta ao título do
   programa). Arraste as abas para reordená-las, ou use `Ctrl+Shift+PageUp` /
   `Ctrl+Shift+PageDown`.
-- **Seleção e cópia de texto**: arraste para selecionar, dê duplo clique para
-  pegar uma palavra ou um caminho de arquivo inteiro.
+- **Seleção e cópia de texto**: arraste para selecionar (levando o ponteiro para
+  cima ou para baixo do painel, o histórico rola, mais rápido quanto mais longe),
+  dê duplo clique para pegar uma palavra ou um caminho de arquivo inteiro, e
+  triplo clique para a linha toda.
 - **Busca no histórico** (`Ctrl+Shift+F`): procura um texto na tela e nas 10 mil
   linhas de histórico do painel ativo, sem diferenciar maiúsculas, destaca as
   ocorrências e mostra "3 de 17". `Enter` vai para a de cima, `Shift+Enter` para a
@@ -330,7 +332,6 @@ memória usam sempre um banco temporário.
 
 - Feito no Windows; no Linux roda, mas parte dos recursos ainda não foi conferida
   (veja [Linux](#linux)). macOS não foi tentado.
-- Arrastar a seleção além da borda não rola o histórico, e não há triplo clique.
 - `Shift+Enter` envia `ESC CR` (o mesmo que `Alt+Enter`): é o que o Claude Code
   entende como nova linha, e o ConPTY do Windows 10 descarta as codificações
   modernas da tecla. Programas que esperam um Shift+Enter "de verdade" não o recebem.

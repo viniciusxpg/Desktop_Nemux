@@ -321,9 +321,15 @@ impl Terminal {
         snapshot(self.parser.lock().unwrap().screen(), colors)
     }
 
-    /// Acesso de leitura à tela (ex.: para extrair o texto selecionado).
+    /// Acesso de leitura à tela (ex.: para achar a palavra sob o ponteiro).
     pub fn with_screen<T>(&self, f: impl FnOnce(&vt100::Screen) -> T) -> T {
         f(self.parser.lock().unwrap().screen())
+    }
+
+    /// Acesso à tela que pode mudar a rolagem (ex.: ler o texto selecionado no
+    /// histórico, que só é lido rolando até ele).
+    pub fn with_screen_mut<T>(&self, f: impl FnOnce(&mut vt100::Screen) -> T) -> T {
+        f(self.parser.lock().unwrap().screen_mut())
     }
 }
 

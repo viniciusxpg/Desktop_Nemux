@@ -30,7 +30,13 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
   - `src/terminal.rs`: PTY (`portable-pty`, ConPTY) + parser `vt100`; `snapshot()`
     transforma a tela em trechos (`Run`) com o mesmo estilo.
   - `src/keys.rs`: teclas do Slint → sequências de terminal.
-  - `src/selection.rs`: seleção de texto com o mouse.
+  - `src/selection.rs`: seleção de texto com o mouse. As linhas contam do topo do
+    histórico (como na busca), para a seleção seguir o texto quando a tela rola;
+    `text` lê o histórico uma tela por vez (`Terminal::with_screen_mut`). Arrastar
+    para fora do painel rola o histórico: um timer de 50 ms (`main.rs`, ligado no
+    `select-start`) chama `App::autoscroll`, porque o ponteiro parado não gera
+    eventos. Triplo clique = clique até 500 ms depois do duplo, na mesma linha
+    (`App::last_word`); o Slint só tem `double-clicked`.
   - `src/search.rs`: busca no histórico (`Ctrl+Shift+F`, `ui/search-bar.slint`).
     O `vt100` só expõe as linhas à vista, então `find_all` percorre o histórico
     mudando a posição de rolagem e a devolve no fim. As ocorrências são contadas a
