@@ -205,6 +205,11 @@ janela (backend de testes do Slint + renderizador por software):
   No Linux a área dos painéis mede 0 até a janela aparecer: `restore_or_open_tab`
   espera o `area-resized` (`App::sized`), senão o shell nasce com 1 coluna e o que
   ele escreve primeiro (um banner do `.bashrc`) fica quebrado.
+  Instalação: `scripts/install-linux.sh` (binários em `/opt/nemux`, lado a lado,
+  porque "Uso do Claude na barra" procura o `nemux-mcp` junto do `nemux-app`;
+  `.desktop` com `StartupWMClass=nemux-app`, o WM_CLASS da janela). Copia para um
+  arquivo novo e troca o nome, para não esbarrar num `nemux-mcp` em uso. Os
+  destinos mudam por variável (`NEMUX_INSTALL_DIR` etc.): teste sem root assim.
   Os testes de UI rodam no Linux também (com `sh`); só os que rodam PowerShell
   (fora dos `ui_tests`) e o ConPTY são do Windows. Para
   conferir que ainda compila sem uma máquina Linux (sem compilador C para Linux, o

@@ -151,6 +151,17 @@ sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev
 cargo build --release -p nemux-app -p nemux-mcp
 ```
 
+Para instalar (binários em `/opt/nemux`, atalho no menu de aplicativos e o comando
+`nemux`), rode da raiz do repositório, sem `sudo` (a senha é pedida só para copiar):
+
+```bash
+scripts/install-linux.sh              # compila em release e instala
+scripts/install-linux.sh --uninstall  # remove (os dados em ~/.config e ~/.local ficam)
+```
+
+Rodar de novo atualiza a instalação, mesmo com sessões do Claude usando o
+`nemux-mcp`. Depois, registre a memória apontando para `/opt/nemux/nemux-mcp`.
+
 ## Começando
 
 ```bash
