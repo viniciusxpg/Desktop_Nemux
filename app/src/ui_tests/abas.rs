@@ -4,7 +4,7 @@ use i_slint_backend_testing::ElementHandle;
 use slint::platform::{Key, PointerEventButton, WindowEvent};
 use slint::{LogicalPosition, Model, SharedString};
 
-use super::{abrir_com_cmd, capturar, cmd, enviar, esperar};
+use super::{LARGURA, abrir, abrir_com_cmd, capturar, cmd, elemento, enviar, esperar};
 use crate::terminal::Event;
 use crate::{AppWindow, Controllers};
 
@@ -221,4 +221,76 @@ fn captura() {
         "{}",
         capturar(&app, "AppWindow::tab-bar", "abas-renomeando").display()
     );
+}
+
+/// Janela com `n` abas ("aba 1" a "aba n") e a aba `ativa`, sem terminais.
+fn muitas_abas(n: usize, ativa: usize) -> AppWindow {
+    let app = abrir();
+    let abas: Vec<crate::TabInfo> = (1..=n)
+        .map(|i| crate::TabInfo {
+            title: format!("aba {i}").into(),
+            ..Default::default()
+        })
+        .collect();
+    app.set_tabs(slint::ModelRc::new(slint::VecModel::from(abas)));
+    app.set_active_tab(ativa as i32);
+    quadro();
+    app
+}
+
+/// Deixa o Slint rodar os `changed` (como o laço de eventos do app faria).
+fn quadro() {
+    i_slint_backend_testing::mock_elapsed_time(std::time::Duration::from_millis(16));
+}
+
+/// Começo e fim (x) de um elemento na janela.
+fn faixa(e: &ElementHandle) -> (f32, f32) {
+    let (p, s) = (e.absolute_position(), e.size());
+    (p.x, p.x + s.width)
+}
+
+#[test]
+fn muitas_abas_nao_empurram_os_botoes_para_fora() {
+    let app = muitas_abas(20, 19);
+    // Os botões da direita continuam dentro da janela.
+    let (_, fim) = faixa(&elemento(&app, "AppWindow::settings-btn"));
+    assert!(
+        fim <= LARGURA,
+        "engrenagem termina em {fim}, fora da janela de {LARGURA}"
+    );
+
+    // A aba ativa (a última) fica à vista, dentro da faixa das abas.
+    let (ini_faixa, fim_faixa) = faixa(&elemento(&app, "AppWindow::tab-strip"));
+
+    // A busca só acha as abas à vista.
+    let aba = ElementHandle::find_by_accessible_label(&app, "aba 20")
+        .next()
+        .expect("aba 20 à vista");
+    let (ini, fim) = faixa(&aba);
+    assert!(
+        ini >= ini_faixa - 0.5 && fim <= fim_faixa + 0.5,
+        "aba ativa em {ini}..{fim}, faixa em {ini_faixa}..{fim_faixa}"
+    );
+
+    // Voltar para a primeira a traz de volta para a vista.
+    app.set_active_tab(0);
+    quadro();
+    let aba = ElementHandle::find_by_accessible_label(&app, "aba 1")
+        .next()
+        .expect("aba 1 à vista");
+    let (ini, _) = faixa(&aba);
+    assert!(
+        ini >= ini_faixa - 0.5,
+        "aba 1 começa em {ini}, antes da faixa"
+    );
+}
+
+#[test]
+fn poucas_abas_ficam_no_tamanho_natural() {
+    let app = muitas_abas(2, 0);
+    let aba = ElementHandle::find_by_element_id(&app, "TabButton::touch")
+        .next()
+        .expect("aba");
+    let (ini, fim) = faixa(&aba);
+    assert_eq!(fim - ini, 220.0, "largura máxima com espaço sobrando");
 }

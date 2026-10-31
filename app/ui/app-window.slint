@@ -80,9 +80,6 @@ component TabButton inherits Rectangle {
     }
 
     height: 32px;
-    min-width: 120px;
-    max-width: 220px;
-    horizontal-stretch: 1;
     opacity: root.dragging ? 0.6 : 1;
     accessible-role: tab;
     accessible-label: root.title;
@@ -435,6 +432,7 @@ export component AppWindow inherits Window {
 
     // Aba sendo arrastada e a posição onde ela cairia (-1 = nenhum arraste).
     property <int> drag-from: -1;
+    changed active-tab => { tab-strip.show-active(); }
     property <int> drag-to: -1;
 
     measure := Text {
@@ -451,27 +449,70 @@ export component AppWindow inherits Window {
 
             HorizontalLayout {
 
-                for tab[i] in root.tabs: TabButton {
-                    title: tab.title;
-                    active: i == root.active-tab;
-                    activity: tab.activity;
-                    attention: tab.attention;
-                    drop-side: root.drag-from >= 0 && root.drag-to == i && i != root.drag-from ? (i < root.drag-from ? 0 : 1) : -1;
-                    clicked => {
-                        root.select-tab(i);
-                        key-handler.focus();
+                // As abas têm todas a mesma largura (o arraste depende disso), entre
+                // 120 e 220 px; quando nem assim cabem, a faixa rola (roda do mouse) e
+                // a aba ativa fica sempre à vista. Sem isso, muitas abas empurravam os
+                // botões para fora e alargavam a janela além da tela.
+                tab-strip := Flickable {
+                    property <length> tab-width: root.tabs.length == 0 ? 220px : clamp(self.width / root.tabs.length, 120px, 220px);
+                    horizontal-stretch: 1;
+                    min-width: 0px;
+                    preferred-width: root.tabs.length * 220px;
+                    max-width: root.tabs.length * 220px;
+                    interactive: false;
+                    content-width: root.tabs.length * self.tab-width;
+                    content-height: self.height;
+
+                    // Leva a aba ativa para dentro da faixa, e a faixa para dentro do conteúdo.
+                    function show-active() {
+                        let start = root.active-tab * self.tab-width;
+                        let min-x = min(0px, self.width - self.content-width);
+                        if start + self.content-x < 0 {
+                            self.content-x = -start;
+                        } else if start + self.tab-width + self.content-x > self.width {
+                            self.content-x = self.width - start - self.tab-width;
+                        }
+                        self.content-x = clamp(self.content-x, min-x, 0px);
                     }
-                    close => { root.close-tab(i); }
-                    renamed(name) => { root.rename-tab(i, name); }
-                    rename-done => { key-handler.focus(); }
-                    drag-move(slots) => {
-                        root.drag-from = i;
-                        root.drag-to = clamp(i + slots, 0, root.tabs.length - 1);
-                    }
-                    drag-end(slots) => {
-                        root.drag-from = -1;
-                        root.drag-to = -1;
-                        root.move-tab(i, clamp(i + slots, 0, root.tabs.length - 1));
+                    changed width => { self.show-active(); }
+                    changed content-width => { self.show-active(); }
+                    init => { self.show-active(); }
+
+                    tab-wheel := TouchArea {
+                        width: parent.content-width;
+                        height: parent.height;
+                        // As abas não usam a roda: ela chega aqui e rola a faixa.
+                        scroll-event(event) => {
+                            let delta = event.delta-x != 0 ? event.delta-x : event.delta-y;
+                            tab-strip.content-x = clamp(tab-strip.content-x + delta, min(0px, tab-strip.width - tab-strip.content-width), 0px);
+                            accept
+                        }
+
+                        for tab[i] in root.tabs: TabButton {
+                            x: i * tab-strip.tab-width;
+                            width: tab-strip.tab-width;
+                            title: tab.title;
+                            active: i == root.active-tab;
+                            activity: tab.activity;
+                            attention: tab.attention;
+                            drop-side: root.drag-from >= 0 && root.drag-to == i && i != root.drag-from ? (i < root.drag-from ? 0 : 1) : -1;
+                            clicked => {
+                                root.select-tab(i);
+                                key-handler.focus();
+                            }
+                            close => { root.close-tab(i); }
+                            renamed(name) => { root.rename-tab(i, name); }
+                            rename-done => { key-handler.focus(); }
+                            drag-move(slots) => {
+                                root.drag-from = i;
+                                root.drag-to = clamp(i + slots, 0, root.tabs.length - 1);
+                            }
+                            drag-end(slots) => {
+                                root.drag-from = -1;
+                                root.drag-to = -1;
+                                root.move-tab(i, clamp(i + slots, 0, root.tabs.length - 1));
+                            }
+                        }
                     }
                 }
 

@@ -182,8 +182,13 @@ janela (backend de testes do Slint + renderizador por software):
   não há winit: eles chamam `Controllers::drop_files`.
 - Abas (`TabButton`): a aba é escolhida ao **apertar** o botão, não ao soltar, para
   o arraste já começar com ela ativa. O arraste calcula a aba sob o ponteiro
-  dividindo a posição pela largura da aba: todas têm a mesma largura (mesmas
-  restrições, sem espaço entre elas); se isso mudar, o cálculo precisa mudar.
+  dividindo a posição pela largura da aba: todas têm a mesma largura
+  (`tab-strip.tab-width`, sem espaço entre elas); se isso mudar, o cálculo precisa
+  mudar. As abas ficam num `Flickable` (`tab-strip`): encolhem de 220 até 120 px e,
+  quando nem assim cabem, a faixa rola (roda do mouse) e `show-active` mantém a aba
+  ativa à vista. Sem isso, a largura mínima de muitas abas alargava a janela além
+  da tela. A busca de elementos nos testes só acha as abas à vista, e os `changed`
+  só rodam com o tempo andando (`mock_elapsed_time`).
   `Tab::name` (duplo clique) fica no lugar do título do programa e vai para o
   `session.json`.
 - Linux: roda (testado no Linux Mint; `cargo test --workspace` passa). Ainda não
