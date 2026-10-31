@@ -56,9 +56,10 @@ pub fn nemux_command() -> Result<String, String> {
     let found = [dir.join(name), dir.join("..").join("release").join(name)]
         .into_iter()
         .find(|p| p.is_file())
+        // O comando primeiro: a faixa de aviso corta o fim de uma mensagem longa.
         .ok_or_else(|| {
             format!(
-                "Não achei o {name} em {}. Compile-o com: cargo build --release -p nemux-mcp",
+                "Falta o {name}: rode cargo build --release -p nemux-mcp (procurei em {})",
                 dir.display()
             )
         })?;
