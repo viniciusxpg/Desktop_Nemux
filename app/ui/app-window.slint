@@ -678,12 +678,13 @@ export component AppWindow inherits Window {
                     accessible-action-default => { root.toggle-settings(); }
                     background: self.lit ? Theme.tab-active : (settings-touch.has-hover ? Theme.tab-hover : transparent);
 
-                    Text {
-                        text: "⚙";
-                        color: parent.lit || settings-touch.has-hover ? Theme.foreground : Theme.muted;
-                        font-size: 16px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
+                    settings-icon := Image {
+                        source: @image-url("icons/settings.svg");
+                        width: 18px;
+                        height: 18px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        colorize: parent.lit ? Theme.accent : (settings-touch.has-hover ? Theme.foreground : Theme.muted);
                     }
 
                     settings-touch := TouchArea {

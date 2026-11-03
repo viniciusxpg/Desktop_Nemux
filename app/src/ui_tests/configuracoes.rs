@@ -228,7 +228,15 @@ fn captura() {
         "{}",
         capturar(&app, "AppWindow::tab-bar", "barra").display()
     );
+    println!(
+        "{}",
+        capturar(&app, "AppWindow::settings-btn", "engrenagem").display()
+    );
     app.invoke_toggle_settings();
+    println!(
+        "{}",
+        capturar(&app, "AppWindow::settings-btn", "engrenagem-aberta").display()
+    );
     println!(
         "{}",
         capturar(&app, "AppWindow::body", "configuracoes").display()
