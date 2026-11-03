@@ -172,6 +172,23 @@ cargo run --release -p nemux-app
 
 A primeira compilação leva alguns minutos por causa do Slint.
 
+### Instalando no Windows
+
+Para instalar só para o seu usuário, sem administrador (binários em
+`%LOCALAPPDATA%\Programs\Nemux`, atalho no Menu Iniciar, o comando `nemux` no PATH
+e uma entrada em "Aplicativos instalados"), rode da raiz do repositório:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1             # compila em release e instala
+powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1 -Uninstall  # remove (os dados em %APPDATA%\nemux ficam)
+```
+
+Também dá para desinstalar por **Configurações › Aplicativos**. Rodar de novo
+atualiza a instalação, mesmo com o Nemux aberto ou sessões do Claude usando o
+`nemux-mcp`. O `.exe` em uso é renomeado para `.old` e apagado na próxima vez.
+Depois, registre a memória apontando para o `nemux-mcp.exe` instalado (o script
+mostra o comando). Assim o `target\release` não fica travado pelas sessões do Claude.
+
 ### Ligando a memória ao Claude Code
 
 Compile o servidor MCP e registre-o no Claude Code (vale para todos os seus

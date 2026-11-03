@@ -137,6 +137,16 @@ janela (backend de testes do Slint + renderizador por software):
 - O servidor está registrado no Claude Code (escopo de usuário) apontando para
   `target\release\nemux-mcp.exe`. O Windows trava o `.exe` enquanto alguma sessão
   do Claude o usa: feche-as antes de recompilar em release.
+- Instalação no Windows: `scripts/install-windows.ps1` (por usuário, sem admin:
+  `%LOCALAPPDATA%\Programs\Nemux` com os dois `.exe` lado a lado, atalho no Menu
+  Iniciar, `nemux.cmd` no PATH do usuário, entrada em `HKCU\...\Uninstall\Nemux`,
+  que roda a cópia do script na pasta com `-Uninstall`). Um `.exe` em uso não pode
+  ser sobrescrito, mas pode ser renomeado: vira `.old-<data>` e é apagado na
+  próxima instalação. O `-Uninstall` não apaga nada se algum `.exe` estiver em uso.
+  O PATH é lido e gravado sem expandir (`REG_EXPAND_SZ`), para não trocar os
+  `%VARIÁVEIS%`. O arquivo precisa de BOM UTF-8: o PowerShell 5.1 lê um `.ps1`
+  sem BOM como ANSI e estraga os acentos. Teste sem mexer na sua instalação com
+  `NEMUX_INSTALL_DIR`, `NEMUX_START_MENU_DIR` e `NEMUX_NO_REGISTRY=1`.
 - **ConPTY novo em `vendor/conpty`** (`conpty.dll` + `OpenConsole.exe` da Microsoft,
   MIT; ver o README de lá), **embutido no executável** (`src/conpty.rs`): no
   primeiro terminal ele é extraído para `%LOCALAPPDATA%\nemux\conpty\<versão>` e
