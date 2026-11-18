@@ -165,8 +165,17 @@ mod tests {
 
     #[test]
     fn comando_com_aspas_e_barras_normais() {
-        let cmd = command_for(Path::new("/opt/nemux/nemux-mcp"));
-        assert_eq!(cmd, CMD);
+        // Um caminho absoluto em cada sistema: no Windows, `/opt/...` ganharia o
+        // disco atual (`std::path::absolute`).
+        #[cfg(windows)]
+        let (exe, esperado) = (
+            r"C:\Program Files\Nemux\nemux-mcp.exe",
+            "\"C:/Program Files/Nemux/nemux-mcp.exe\" statusline",
+        );
+        #[cfg(not(windows))]
+        let (exe, esperado) = ("/opt/nemux/nemux-mcp", CMD);
+        let cmd = command_for(Path::new(exe));
+        assert_eq!(cmd, esperado);
         assert!(is_ours(&json!({ "command": cmd })));
         assert!(!is_ours(&json!({ "command": "nemux-mcp" })));
     }
