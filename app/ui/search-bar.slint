@@ -83,7 +83,7 @@ export component SearchBar inherits Rectangle {
             status-text := Text {
                 min-width: 92px;
                 text: root.status;
-                color: root.status == "Nenhum resultado" ? #e74856 : Theme.muted;
+                color: root.status == "Nenhum resultado" ? Theme.danger : Theme.muted;
                 font-size: 12px;
                 horizontal-alignment: center;
                 vertical-alignment: center;

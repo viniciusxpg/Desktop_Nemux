@@ -82,6 +82,7 @@ impl SessionsView {
             })
             .collect();
         ui.set_sessions(ModelRc::new(VecModel::from(items)));
+        ui.set_sessions_orphans(self.orphans(now).count() as i32);
         ui.set_sessions_status(self.status().into());
     }
 
@@ -101,11 +102,25 @@ impl SessionsView {
         self.shown.get(index).and_then(|s| (self.command_for)(s))
     }
 
+    /// Sessões cuja pasta não existe mais (não dá para retomá-las), menos as em uso.
+    fn orphans(&self, now: SystemTime) -> impl Iterator<Item = &Session> {
+        self.all
+            .iter()
+            .filter(move |s| !s.is_available() && !s.is_active(now))
+    }
+
     /// Apaga do disco a sessão no índice `index` da lista mostrada e relê a lista.
+    /// Uma sessão em uso não é apagada: o Claude voltaria a gravar nela.
     pub fn delete(&mut self, ui: &AppWindow, index: usize) {
         let Some(session) = self.shown.get(index) else {
             return;
         };
+        if session.is_active(SystemTime::now()) {
+            ui.set_sessions_status(
+                "Esta sessão está em uso: feche o Claude dela antes de excluí-la.".into(),
+            );
+            return;
+        }
         let result = sessions::delete(session);
         let title = session.title.clone();
         self.refresh(ui);
@@ -115,6 +130,32 @@ impl SessionsView {
                 format!("Não foi possível excluir a sessão \"{title}\": {e}").into(),
             ),
         }
+    }
+
+    /// Apaga do disco todas as sessões cuja pasta não existe mais e relê a lista.
+    pub fn delete_orphans(&mut self, ui: &AppWindow) {
+        let (mut ok, mut failed) = (0, 0);
+        for session in self.orphans(SystemTime::now()) {
+            match sessions::delete(session) {
+                Ok(()) => ok += 1,
+                Err(e) => {
+                    eprintln!(
+                        "nemux: não foi possível excluir {}: {e}",
+                        session.path.display()
+                    );
+                    failed += 1;
+                }
+            }
+        }
+        self.refresh(ui);
+        let mut status = match ok {
+            1 => "1 sessão sem pasta excluída.".to_string(),
+            n => format!("{n} sessões sem pasta excluídas."),
+        };
+        if failed > 0 {
+            status += &format!(" {failed} não puderam ser excluídas.");
+        }
+        ui.set_sessions_status(status.into());
     }
 }
 

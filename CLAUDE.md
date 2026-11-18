@@ -63,7 +63,10 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
   - `src/session_view.rs`: lista "Retomar sessão" (`ui/session-picker.slint`);
     retomar abre `powershell -NoExit -Command "claude --resume <id>"` na pasta da sessão.
     A lixeira de cada linha pede confirmação na própria linha e apaga o `.jsonl` e a
-    pasta `<id>/` ao lado dele (subagentes), com `sessions::delete`.
+    pasta `<id>/` ao lado dele (subagentes), com `sessions::delete`; "Excluir N sem
+    pasta" apaga as que não dá para retomar. Sessão "em uso" (gravada há menos de
+    2 min) não se exclui: o Claude voltaria a gravar nela e o arquivo reapareceria.
+    Ao restaurar as abas, `sessions::resume_saved` só retoma sessão que ainda existe.
   - `src/config.rs`: `config.toml` do usuário (`%APPDATA%\nemux\config.toml` ou
     `NEMUX_CONFIG`): shell, fonte e cores. Fonte e cores da interface vão para o
     global `Theme` (por isso as propriedades dele são `in-out`); as do terminal
@@ -71,7 +74,8 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     arquivo com erro vira a configuração padrão e um aviso (`config-error`).
     As cores partem de um tema pronto (`src/themes.toml`, embutido; o primeiro é
     o padrão e tem de bater com `Colors::default()`), e `[colors]`/`[app]` ficam
-    por cima (`Scheme`). O menu da engrenagem (`ui/settings-menu.slint`) muda na
+    por cima (`Scheme`). `Theme.attention` e `Theme.danger` vêm da paleta do
+    terminal (amarelo e vermelho claro): não use cores fixas nos `.slint`. O menu da engrenagem (`ui/settings-menu.slint`) muda na
     hora tema (`ui/theme-picker.slint`), fonte (`Ctrl+=`/`-`/`0`) e `restore`, e
     grava no arquivo com `toml_edit` (`config::edit_file`), sem mexer no resto. A
     lista de atalhos fica em `ShortcutsCard`: mantenha-a igual à do README.

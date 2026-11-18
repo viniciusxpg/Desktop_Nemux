@@ -38,7 +38,7 @@ component MemoryItem inherits Rectangle {
 
                     Text {
                         text: root.entry.project;
-                        color: #9ab8ff;
+                        color: Theme.accent.mix(Theme.foreground, 0.5);
                         font-size: 11px;
                     }
                 }
@@ -65,7 +65,7 @@ component MemoryItem inherits Rectangle {
 
                     Text {
                         text: root.confirming ? "Confirmar?" : "Apagar";
-                        color: root.confirming ? #e74856 : Theme.muted;
+                        color: root.confirming ? Theme.danger : Theme.muted;
                         font-size: 11px;
                         vertical-alignment: center;
                     }

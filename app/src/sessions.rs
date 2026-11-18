@@ -203,6 +203,25 @@ pub fn delete(session: &Session) -> std::io::Result<()> {
     std::fs::remove_file(&session.path)
 }
 
+/// O `.jsonl` da sessão `id` em alguma pasta de projeto de `dir`, se ainda existir.
+pub fn find(dir: &Path, id: &str) -> Option<PathBuf> {
+    if !valid_id(id) {
+        return None;
+    }
+    std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|project| project.path().join(format!("{id}.jsonl")))
+        .find(|path| path.is_file())
+}
+
+/// Como `resume_in`, mas só se a sessão ainda existe em `projects_dir()`: uma sessão
+/// excluída (ou limpa pelo Claude Code) só daria erro ao reabrir as abas.
+pub fn resume_saved(id: &str, cwd: &Path) -> Option<CommandBuilder> {
+    find(&projects_dir()?, id)?;
+    resume_in(id, cwd)
+}
+
 /// Ids são UUIDs; qualquer outra coisa não vai para a linha de comando.
 fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
@@ -462,6 +481,18 @@ mod tests {
         assert!(!dir.path().join("p").join(ID_A).exists());
         assert!(b.exists(), "as outras ficam");
         assert_eq!(scan(dir.path(), 10).len(), 1);
+    }
+
+    #[test]
+    fn find_only_existing_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let content = line(serde_json::json!({"type": "ai-title", "aiTitle": "t"}));
+        let a = write(dir.path(), "p", ID_A, &content);
+        assert_eq!(find(dir.path(), ID_A), Some(a.clone()));
+        assert_eq!(find(dir.path(), ID_B), None);
+        assert_eq!(find(dir.path(), "../p/x"), None, "id que não é id");
+        std::fs::remove_file(&a).unwrap();
+        assert_eq!(find(dir.path(), ID_A), None);
     }
 
     #[test]

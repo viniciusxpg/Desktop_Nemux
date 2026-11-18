@@ -140,7 +140,7 @@ impl App {
             metrics,
             events,
             shell: Box::new(|| shell_command(None)),
-            resume: Box::new(crate::sessions::resume_in),
+            resume: Box::new(crate::sessions::resume_saved),
             foreground: Box::new(|| true),
             on_attention: Box::new(|| {}),
             colors: Colors::default(),

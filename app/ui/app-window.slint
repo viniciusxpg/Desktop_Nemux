@@ -265,6 +265,8 @@ export component AppWindow inherits Window {
     in property <[SessionItem]> sessions;
     in-out property <string> sessions-query;
     in property <string> sessions-status;
+    // Sessões cuja pasta não existe mais (o botão "Excluir as sem pasta").
+    in property <int> sessions-orphans;
 
     // Lista de temas prontos; escolher aplica e grava no config.toml.
     in-out property <bool> themes-open;
@@ -344,6 +346,7 @@ export component AppWindow inherits Window {
     callback sessions-filter();
     callback session-open(int);
     callback session-delete(int);
+    callback sessions-delete-orphans();
     callback config-error-dismissed();
     callback theme-chosen(int);
     // Fonte: +1 / -1 ponto; 0 volta ao padrão.
@@ -500,7 +503,7 @@ export component AppWindow inherits Window {
                                         x: 0;
                                         width: parent.width * clamp(meter.percent / 100, 0, 1);
                                         border-radius: 3px;
-                                        background: meter.percent >= 95 ? #e05252 : (meter.percent >= 80 ? Theme.attention : Theme.accent);
+                                        background: meter.percent >= 95 ? Theme.danger : (meter.percent >= 80 ? Theme.attention : Theme.accent);
                                     }
                                 }
                             }
@@ -710,7 +713,7 @@ export component AppWindow inherits Window {
 
         if root.config-error != "": config-banner := Rectangle {
             height: 28px;
-            background: #5a1d1d;
+            background: Theme.danger.darker(1.5);
 
             HorizontalLayout {
                 padding-left: 12px;
@@ -729,7 +732,7 @@ export component AppWindow inherits Window {
                     accessible-role: button;
                     accessible-label: "Fechar aviso da configuração";
                     accessible-action-default => { root.config-error-dismissed(); }
-                    background: banner-close.has-hover ? #7a2d2d : transparent;
+                    background: banner-close.has-hover ? Theme.danger.darker(1.0) : transparent;
 
                     Text {
                         text: "×";
@@ -945,7 +948,9 @@ export component AppWindow inherits Window {
         status: root.sessions-status;
         search-changed => { root.sessions-filter(); }
         open(i) => { root.session-open(i); }
+        orphans: root.sessions-orphans;
         delete(i) => { root.session-delete(i); }
+        delete-orphans => { root.sessions-delete-orphans(); }
         close => { root.toggle-sessions(); }
     }
 }

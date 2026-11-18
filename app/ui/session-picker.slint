@@ -11,7 +11,7 @@ export struct SessionItem {
     available: bool,
 }
 
-// Botão pequeno de texto da confirmação de exclusão.
+// Botão pequeno de texto (exclusão e a confirmação dela).
 component RowButton inherits Rectangle {
     in property <string> text;
     in property <string> label;
@@ -99,7 +99,7 @@ component SessionRow inherits Rectangle {
 
                 if root.item.active: Rectangle {
                     border-radius: 4px;
-                    background: #c19c0033;
+                    background: Theme.attention.transparentize(80%);
 
                     HorizontalLayout {
                         padding-left: 6px;
@@ -107,7 +107,7 @@ component SessionRow inherits Rectangle {
 
                         Text {
                             text: "em uso";
-                            color: #f9f1a5;
+                            color: Theme.attention;
                             font-size: 11px;
                             vertical-alignment: center;
                         }
@@ -122,7 +122,13 @@ component SessionRow inherits Rectangle {
             }
         }
 
-        if !root.confirming: VerticalLayout {
+        // Sessão em uso não se exclui (o Claude voltaria a gravar nela): no lugar
+        // da lixeira, um espaço do mesmo tamanho, para as colunas não mudarem.
+        if root.item.active: Rectangle {
+            width: 28px;
+        }
+
+        if !root.confirming && !root.item.active: VerticalLayout {
             alignment: center;
 
             trash := Rectangle {
@@ -140,7 +146,7 @@ component SessionRow inherits Rectangle {
                     height: 16px;
                     x: (parent.width - self.width) / 2;
                     y: (parent.height - self.height) / 2;
-                    colorize: trash-touch.has-hover ? #f1707b : Theme.muted;
+                    colorize: trash-touch.has-hover ? Theme.danger : Theme.muted;
                 }
 
                 trash-touch := TouchArea {
@@ -167,7 +173,7 @@ component SessionRow inherits Rectangle {
                     height: 26px;
                     text: "Excluir";
                     label: "Confirmar exclusão de " + root.item.title;
-                    text-color: #f1707b;
+                    text-color: Theme.danger;
                     clicked => {
                         root.confirming = false;
                         root.delete();
@@ -190,12 +196,16 @@ export component SessionPicker inherits Rectangle {
     in property <[SessionItem]> sessions;
     in-out property <string> query;
     in property <string> status;
+    // Sessões cuja pasta não existe mais: o botão "Excluir as sem pasta" apaga todas.
+    in property <int> orphans;
+    property <bool> confirming-orphans;
 
     callback search-changed();
     // Índice na lista mostrada.
     callback open(int);
     // Apaga do disco (depois de confirmar na linha).
     callback delete(int);
+    callback delete-orphans();
     callback close();
 
     background: #000000aa;
@@ -242,6 +252,43 @@ export component SessionPicker inherits Rectangle {
                         font-weight: 700;
                         vertical-alignment: center;
                         horizontal-stretch: 1;
+                    }
+
+                    if root.orphans > 0 && !root.confirming-orphans: RowButton {
+                        height: 28px;
+                        text: "Excluir " + root.orphans + " sem pasta";
+                        label: "Excluir as sessões sem pasta";
+                        text-color: Theme.muted;
+                        clicked => { root.confirming-orphans = true; }
+                    }
+
+                    if root.confirming-orphans: HorizontalLayout {
+                        spacing: 2px;
+
+                        Text {
+                            text: root.orphans == 1 ? "Excluir 1 sessão sem pasta?" : "Excluir " + root.orphans + " sessões sem pasta?";
+                            color: Theme.muted;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+
+                        RowButton {
+                            height: 28px;
+                            text: "Excluir";
+                            label: "Confirmar exclusão das sessões sem pasta";
+                            text-color: Theme.danger;
+                            clicked => {
+                                root.confirming-orphans = false;
+                                root.delete-orphans();
+                            }
+                        }
+
+                        RowButton {
+                            height: 28px;
+                            text: "Cancelar";
+                            label: "Cancelar exclusão das sessões sem pasta";
+                            clicked => { root.confirming-orphans = false; }
+                        }
                     }
 
                     close-btn := Rectangle {

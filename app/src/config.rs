@@ -252,6 +252,7 @@ impl Config {
         theme.set_muted(scheme.muted.color());
         theme.set_divider(scheme.divider.color());
         theme.set_attention(rgb(scheme.terminal.palette[3]));
+        theme.set_danger(rgb(scheme.terminal.palette[9]));
         if let Some(family) = self.font.family.as_deref().or(default_font_family()) {
             theme.set_font_family(family.into());
         }

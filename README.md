@@ -54,7 +54,9 @@ Aba 3: claude ─┘                     ▲
 - **Shift+Enter** quebra a linha no prompt do Claude Code sem enviar.
 - **Retomar sessões do Claude**: liste as conversas salvas do Claude Code (com
   título, pasta e quando foram usadas) e continue qualquer uma numa aba nova,
-  inclusive as que foram abertas em outro terminal.
+  inclusive as que foram abertas em outro terminal. A lixeira de cada linha exclui
+  a sessão do disco (pede confirmação; uma sessão em uso não pode ser excluída), e
+  **Excluir N sem pasta** apaga de uma vez as sessões cuja pasta não existe mais.
 - **Memória compartilhada via MCP**: um servidor MCP que o Claude Code usa para
   salvar, buscar e apagar memórias.
 - **Painel de memória**: veja, busque, filtre por projeto e apague o que o Claude
@@ -107,6 +109,8 @@ fecha. Ao fechar o Nemux (e a cada 30 segundos), o app grava as abas em
 `%APPDATA%\nemux\session.json` com a sessão de cada painel.
 
 - Sem o servidor MCP registrado, os painéis voltam como shells, sem o Claude.
+- Uma sessão que não existe mais (excluída na lista, por exemplo) também volta como
+  shell, na pasta do painel.
 - Depois de um `/clear`, o Claude começa outra sessão, mas o servidor MCP continua
   com o id antigo: o painel volta com a conversa de antes do `/clear`.
 - A pasta de um shell comum só acompanha os `cd` se o prompt avisar o terminal

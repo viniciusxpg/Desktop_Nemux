@@ -13,6 +13,8 @@ use crate::{AppWindow, Controllers};
 
 const ID_NOVA: &str = "11111111-aaaa-4bbb-8ccc-000000000001";
 const ID_SEM_PASTA: &str = "22222222-aaaa-4bbb-8ccc-000000000002";
+const ID_SEM_PASTA_2: &str = "33333333-aaaa-4bbb-8ccc-000000000003";
+const ID_EM_USO_SEM_PASTA: &str = "44444444-aaaa-4bbb-8ccc-000000000004";
 
 struct Cenario {
     app: AppWindow,
@@ -235,6 +237,68 @@ fn excluir_pede_confirmacao_e_apaga_do_disco() {
     assert!(s.app.get_sessions_open(), "a lista continua aberta");
 }
 
+#[test]
+fn sessao_em_uso_nao_se_exclui() {
+    let s = cenario();
+    let arquivo = s
+        ._dir
+        .path()
+        .join("projeto")
+        .join(format!("{ID_NOVA}.jsonl"));
+    s.app.invoke_toggle_sessions();
+
+    assert!(
+        ElementHandle::find_by_accessible_label(&s.app, "Excluir Corrigir o build")
+            .next()
+            .is_none(),
+        "sem lixeira na sessão em uso"
+    );
+    // Nem pelo callback.
+    s.app.invoke_session_delete(0);
+    assert!(arquivo.exists());
+    assert!(s.app.get_sessions_status().contains("está em uso"));
+}
+
+#[test]
+fn excluir_as_sem_pasta_de_uma_vez() {
+    let s = cenario();
+    let projeto = s._dir.path().join("projeto");
+    // Mais uma sem pasta, e uma em uso sem pasta, que fica.
+    let apagada = s._dir.path().join("apagada");
+    sessao(s._dir.path(), ID_SEM_PASTA_2, &apagada, "Outra antiga", 300);
+    sessao(
+        s._dir.path(),
+        ID_EM_USO_SEM_PASTA,
+        &apagada,
+        "Rodando ainda",
+        0,
+    );
+    s.app.invoke_toggle_sessions();
+    assert_eq!(s.app.get_sessions_orphans(), 2, "a em uso não conta");
+
+    botao(&s.app, "Excluir as sessões sem pasta").invoke_accessible_default_action();
+    assert_eq!(titulos(&s.app).len(), 4, "só pede confirmação");
+    botao(&s.app, "Cancelar exclusão das sessões sem pasta").invoke_accessible_default_action();
+    assert_eq!(titulos(&s.app).len(), 4);
+
+    botao(&s.app, "Excluir as sessões sem pasta").invoke_accessible_default_action();
+    botao(&s.app, "Confirmar exclusão das sessões sem pasta").invoke_accessible_default_action();
+    assert_eq!(titulos(&s.app), ["Rodando ainda", "Corrigir o build"]);
+    assert!(!projeto.join(format!("{ID_SEM_PASTA}.jsonl")).exists());
+    assert!(!projeto.join(format!("{ID_SEM_PASTA_2}.jsonl")).exists());
+    assert_eq!(s.app.get_sessions_orphans(), 0);
+    assert_eq!(
+        s.app.get_sessions_status(),
+        "2 sessões sem pasta excluídas."
+    );
+    assert!(
+        ElementHandle::find_by_accessible_label(&s.app, "Excluir as sessões sem pasta")
+            .next()
+            .is_none(),
+        "sem sessões sem pasta, o botão some"
+    );
+}
+
 // Não verifica nada: gera a captura da lista para conferência visual.
 // Fica fora do cargo test normal; rode com `cargo capturas`.
 #[test]
@@ -255,5 +319,15 @@ fn capturas() {
     println!(
         "{}",
         capturar(&s.app, "AppWindow::session-picker", "sessoes-excluir").display()
+    );
+    botao(&s.app, "Excluir as sessões sem pasta").invoke_accessible_default_action();
+    println!(
+        "{}",
+        capturar(
+            &s.app,
+            "AppWindow::session-picker",
+            "sessoes-excluir-sem-pasta"
+        )
+        .display()
     );
 }

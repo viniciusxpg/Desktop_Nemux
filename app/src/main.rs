@@ -643,6 +643,14 @@ pub fn init_controllers_with(
             }
         }
     });
+    ui.on_sessions_delete_orphans({
+        let (sessions, weak) = (sessions.clone(), ui.as_weak());
+        move || {
+            if let Some(ui) = weak.upgrade() {
+                sessions.borrow_mut().delete_orphans(&ui);
+            }
+        }
+    });
     ui.on_session_open({
         let (sessions, weak, on_change) = (sessions.clone(), ui.as_weak(), on_change.clone());
         move |index| {
