@@ -25,6 +25,8 @@ pub struct Session {
     pub cwd: Option<PathBuf>,
     pub title: String,
     pub modified: SystemTime,
+    /// O `.jsonl` da sessão.
+    pub path: PathBuf,
 }
 
 impl Session {
@@ -121,6 +123,7 @@ fn read_session(path: &Path, modified: SystemTime) -> Option<Session> {
         cwd,
         title: one_line(&title),
         modified,
+        path: path.to_path_buf(),
     })
 }
 
@@ -188,6 +191,16 @@ fn one_line(text: &str) -> String {
         Some((cut, _)) => format!("{}…", joined[..cut].trim_end()),
         None => joined,
     }
+}
+
+/// Apaga a sessão do disco: o `.jsonl` e a pasta com o mesmo nome ao lado dele
+/// (subagentes e saídas de ferramentas), se houver.
+pub fn delete(session: &Session) -> std::io::Result<()> {
+    let folder = session.path.with_extension("");
+    if folder.is_dir() && folder.file_name() == Some(session.id.as_ref()) {
+        std::fs::remove_dir_all(&folder)?;
+    }
+    std::fs::remove_file(&session.path)
 }
 
 /// Ids são UUIDs; qualquer outra coisa não vai para a linha de comando.
@@ -408,6 +421,7 @@ mod tests {
             cwd: Some(dir.path().to_path_buf()),
             title: "t".into(),
             modified: SystemTime::now(),
+            path: PathBuf::new(),
         };
         let cmd = resume_command(&ok).unwrap();
         let argv: Vec<_> = cmd
@@ -431,6 +445,23 @@ mod tests {
             })
             .is_none()
         );
+    }
+
+    #[test]
+    fn delete_removes_file_and_its_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let content = line(serde_json::json!({"type": "ai-title", "aiTitle": "t"}));
+        let a = write(dir.path(), "p", ID_A, &content);
+        write(&dir.path().join("p"), ID_A, ID_B, &content); // subagente
+        let b = write(dir.path(), "p", ID_B, &content);
+
+        let sessions = scan(dir.path(), 10);
+        let alvo = sessions.iter().find(|s| s.id == ID_A).unwrap();
+        delete(alvo).unwrap();
+        assert!(!a.exists());
+        assert!(!dir.path().join("p").join(ID_A).exists());
+        assert!(b.exists(), "as outras ficam");
+        assert_eq!(scan(dir.path(), 10).len(), 1);
     }
 
     #[test]

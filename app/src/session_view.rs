@@ -100,6 +100,22 @@ impl SessionsView {
     pub fn command(&self, index: usize) -> Option<CommandBuilder> {
         self.shown.get(index).and_then(|s| (self.command_for)(s))
     }
+
+    /// Apaga do disco a sessão no índice `index` da lista mostrada e relê a lista.
+    pub fn delete(&mut self, ui: &AppWindow, index: usize) {
+        let Some(session) = self.shown.get(index) else {
+            return;
+        };
+        let result = sessions::delete(session);
+        let title = session.title.clone();
+        self.refresh(ui);
+        match result {
+            Ok(()) => ui.set_sessions_status(format!("Sessão \"{title}\" excluída.").into()),
+            Err(e) => ui.set_sessions_status(
+                format!("Não foi possível excluir a sessão \"{title}\": {e}").into(),
+            ),
+        }
+    }
 }
 
 /// Caminho com a pasta do usuário trocada por `~`.

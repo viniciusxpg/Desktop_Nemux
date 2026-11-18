@@ -208,6 +208,33 @@ fn sem_pasta_de_sessoes_avisa() {
     );
 }
 
+#[test]
+fn excluir_pede_confirmacao_e_apaga_do_disco() {
+    let s = cenario();
+    let arquivo = s
+        ._dir
+        .path()
+        .join("projeto")
+        .join(format!("{ID_SEM_PASTA}.jsonl"));
+    s.app.invoke_toggle_sessions();
+
+    botao(&s.app, "Excluir Projeto antigo").invoke_accessible_default_action();
+    assert!(arquivo.exists(), "a lixeira só pede confirmação");
+    botao(&s.app, "Cancelar exclusão de Projeto antigo").invoke_accessible_default_action();
+    assert!(arquivo.exists());
+    assert_eq!(titulos(&s.app).len(), 2);
+
+    botao(&s.app, "Excluir Projeto antigo").invoke_accessible_default_action();
+    botao(&s.app, "Confirmar exclusão de Projeto antigo").invoke_accessible_default_action();
+    assert!(!arquivo.exists());
+    assert_eq!(titulos(&s.app), ["Corrigir o build"]);
+    assert_eq!(
+        s.app.get_sessions_status(),
+        "Sessão \"Projeto antigo\" excluída."
+    );
+    assert!(s.app.get_sessions_open(), "a lista continua aberta");
+}
+
 // Não verifica nada: gera a captura da lista para conferência visual.
 // Fica fora do cargo test normal; rode com `cargo capturas`.
 #[test]
@@ -223,5 +250,10 @@ fn capturas() {
     println!(
         "{}",
         capturar(&s.app, "AppWindow::session-picker", "sessoes").display()
+    );
+    botao(&s.app, "Excluir Projeto antigo").invoke_accessible_default_action();
+    println!(
+        "{}",
+        capturar(&s.app, "AppWindow::session-picker", "sessoes-excluir").display()
     );
 }

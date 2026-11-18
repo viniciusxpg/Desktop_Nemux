@@ -343,6 +343,7 @@ export component AppWindow inherits Window {
     callback sessions-refresh();
     callback sessions-filter();
     callback session-open(int);
+    callback session-delete(int);
     callback config-error-dismissed();
     callback theme-chosen(int);
     // Fonte: +1 / -1 ponto; 0 volta ao padrão.
@@ -931,6 +932,7 @@ export component AppWindow inherits Window {
         status: root.sessions-status;
         search-changed => { root.sessions-filter(); }
         open(i) => { root.session-open(i); }
+        delete(i) => { root.session-delete(i); }
         close => { root.toggle-sessions(); }
     }
 }

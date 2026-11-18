@@ -62,6 +62,8 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     com `Controllers::use_claude_settings`, que os testes não chamam.
   - `src/session_view.rs`: lista "Retomar sessão" (`ui/session-picker.slint`);
     retomar abre `powershell -NoExit -Command "claude --resume <id>"` na pasta da sessão.
+    A lixeira de cada linha pede confirmação na própria linha e apaga o `.jsonl` e a
+    pasta `<id>/` ao lado dele (subagentes), com `sessions::delete`.
   - `src/config.rs`: `config.toml` do usuário (`%APPDATA%\nemux\config.toml` ou
     `NEMUX_CONFIG`): shell, fonte e cores. Fonte e cores da interface vão para o
     global `Theme` (por isso as propriedades dele são `in-out`); as do terminal
