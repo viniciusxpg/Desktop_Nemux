@@ -1,5 +1,5 @@
 //! Uso do Claude Code: lê o que `nemux-mcp statusline` grava no banco (a barra de
-//! status de cada sessão do Claude). Os limites do plano vão para a barra de abas;
+//! status de cada sessão do Claude). Os limites do plano vão para a barra de cima;
 //! o contexto de cada sessão, para o painel onde ela roda.
 
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ pub struct UsageView {
     loaded_at: Option<Instant>,
 }
 
-/// O que mostrar: medidores da barra de abas, o texto ao passar o mouse e o
+/// O que mostrar: medidores da barra de cima, o texto ao passar o mouse e o
 /// contexto de cada painel (pelo `NEMUX_PANE` dele).
 #[derive(Debug, PartialEq)]
 pub struct Snapshot {

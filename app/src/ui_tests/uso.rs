@@ -118,6 +118,6 @@ fn capturas() {
     app.set_usage_meters(slint::ModelRc::new(slint::VecModel::from(medidores)));
     println!(
         "{}",
-        capturar(&app, "AppWindow::tab-bar", "uso-barra").display()
+        capturar(&app, "AppWindow::top-bar", "uso-barra").display()
     );
 }

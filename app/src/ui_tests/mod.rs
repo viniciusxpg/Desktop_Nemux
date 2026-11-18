@@ -39,6 +39,8 @@ use crate::layout::PaneId;
 // tamanho de uma janela típica; o Nemux não tem rolagem de página
 pub const LARGURA: f32 = 900.0;
 pub const ALTURA: f32 = 500.0;
+/// Barra de cima (uso e botões) e a das abas logo abaixo, 32 px cada: o resto é dos painéis.
+pub const BARRAS: f32 = 64.0;
 
 // Cria a janela no backend de testes. Cada teste roda na sua própria thread,
 // com o seu próprio backend.

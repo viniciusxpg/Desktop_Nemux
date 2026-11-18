@@ -3,8 +3,8 @@
 use slint::{ComponentHandle, Model};
 
 use super::{
-    ALTURA, LARGURA, PROMPT, abrir_com_cmd, arrastar, capturar, clicar_em, cmd, cmd_que_termina,
-    esperar, esperar_texto, painel, ponto,
+    ALTURA, BARRAS, LARGURA, PROMPT, abrir_com_cmd, arrastar, capturar, clicar_em, cmd,
+    cmd_que_termina, esperar, esperar_texto, painel, ponto,
 };
 use crate::AppWindow;
 
@@ -46,7 +46,7 @@ fn dividir_ao_lado_e_abaixo() {
     assert_eq!(ids(&app), [0, 1]);
     assert_eq!(ativo(&app), 1, "o painel novo recebe o foco");
     let (a, b) = (painel(&app, 0), painel(&app, 1));
-    assert_eq!((a.x, a.y, a.height), (0.0, 0.0, ALTURA - 32.0));
+    assert_eq!((a.x, a.y, a.height), (0.0, 0.0, ALTURA - BARRAS));
     assert_eq!(b.x, a.width + 2.0, "2px de divisória");
     assert_eq!(a.width + 2.0 + b.width, LARGURA);
     {
@@ -159,7 +159,7 @@ fn painel_cujo_processo_termina_some() {
         e.panes.len() == 1
     });
     assert_eq!(ids(&app), [0]);
-    assert_eq!(painel(&app, 0).height, ALTURA - 32.0);
+    assert_eq!(painel(&app, 0).height, ALTURA - BARRAS);
     assert_eq!(c.app.borrow().tabs.len(), 1, "a aba continua aberta");
 }
 
@@ -211,6 +211,6 @@ fn capturas() {
     );
     println!(
         "{}",
-        capturar(&app, "AppWindow::tab-bar", "abas-paineis").display()
+        capturar(&app, "AppWindow::top-bar", "barra-paineis").display()
     );
 }

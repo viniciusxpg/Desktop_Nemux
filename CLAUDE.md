@@ -50,7 +50,7 @@ persistente em SQLite que as sessões do Claude Code compartilham via MCP.
     `last-prompt`); os arquivos chegam a vários MB. Esse formato é interno do
     Claude Code e pode mudar: se a lista vier vazia ou sem título, comece por aqui.
   - `src/usage_view.rs`: uso do Claude (o que o `nemux-mcp statusline` grava):
-    limites na barra de abas (`usage-meters`, detalhe em `usage-detail`, com o
+    limites na barra de cima (`usage-meters`, detalhe em `usage-detail`, com o
     caranguejo em pixel art de `ui/icons/caranguejo.svg`: grade de 16×10 com 8
     unidades por pixel, pintado com a cor de destaque por `colorize` e mostrado em
     16×10 px, sem suavizar) e o
@@ -195,6 +195,8 @@ janela (backend de testes do Slint + renderizador por software):
   por arquivo e sem a posição do ponteiro: os arquivos são juntados num timer de 0 s
   e o painel é o que está sob `window::cursor_position` (`GetCursorPos`). Nos testes
   não há winit: eles chamam `Controllers::drop_files`.
+- Barras: a de cima (`top-bar`) tem o uso do Claude e os botões; a segunda,
+  logo abaixo (`tab-bar`), tem as abas. Os menus que abrem da engrenagem se ancoram em `top-bar`.
 - Abas (`TabButton`): a aba é escolhida ao **apertar** o botão, não ao soltar, para
   o arraste já começar com ela ativa. O arraste calcula a aba sob o ponteiro
   dividindo a posição pela largura da aba: todas têm a mesma largura

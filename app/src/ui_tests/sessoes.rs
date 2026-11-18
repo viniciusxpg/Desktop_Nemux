@@ -244,7 +244,7 @@ fn capturas() {
     // A barra antes de abrir a lista, que escurece o resto da janela.
     println!(
         "{}",
-        capturar(&s.app, "AppWindow::tab-bar", "abas-sessoes").display()
+        capturar(&s.app, "AppWindow::top-bar", "barra-sessoes").display()
     );
     s.app.invoke_toggle_sessions();
     println!(

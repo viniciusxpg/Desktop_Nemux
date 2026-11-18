@@ -7,7 +7,8 @@ use slint::platform::{PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalPosition, Model, ModelRc, VecModel};
 
 use super::{
-    ALTURA, LARGURA, abrir, abrir_com_cmd, capturar, elemento, enviar, esperar, medir, painel,
+    ALTURA, BARRAS, LARGURA, abrir, abrir_com_cmd, capturar, elemento, enviar, esperar, medir,
+    painel,
 };
 use crate::layout::{Rect, grid_size};
 use crate::terminal::{Callbacks, Colors, Parser, snapshot};
@@ -80,17 +81,17 @@ fn aba(app: &AppWindow, label: &str) -> ElementHandle {
 }
 
 #[test]
-fn area_dos_paineis_fica_abaixo_das_abas() {
+fn area_dos_paineis_fica_entre_as_barras() {
     let app = abrir();
     let (cw, ch) = (app.get_cell_width(), app.get_cell_height());
     assert!(
         cw > 5.0 && ch > 10.0,
         "célula com tamanho estranho: {cw}×{ch}"
     );
-    // 32px de barra de abas.
+    // As duas barras em cima: uso e botões, e as abas.
     assert_eq!(
         (app.get_area_width(), app.get_area_height()),
-        (LARGURA, ALTURA - 32.0)
+        (LARGURA, ALTURA - BARRAS)
     );
 
     mostrar(&app, "oi");
@@ -101,7 +102,7 @@ fn area_dos_paineis_fica_abaixo_das_abas() {
         LARGURA - 2.0 * pad - app.get_scrollbar_width(),
         "a barra de rolagem tem faixa própria"
     );
-    assert_eq!(grade.size().height, ALTURA - 32.0 - 2.0 * pad);
+    assert_eq!(grade.size().height, ALTURA - BARRAS - 2.0 * pad);
 }
 
 #[test]
@@ -114,7 +115,7 @@ fn um_painel_ocupa_a_area_e_o_terminal_cabe_nele() {
     let p = painel(&app, 0);
     assert_eq!(
         (p.x, p.y, p.width, p.height),
-        (0.0, 0.0, LARGURA, ALTURA - 32.0)
+        (0.0, 0.0, LARGURA, ALTURA - BARRAS)
     );
     let esperado = grid_size(
         Rect::new(0.0, 0.0, p.width, p.height),
@@ -138,9 +139,9 @@ fn redimensionar_a_janela_redimensiona_o_terminal() {
     });
 
     let p = painel(&app, 0);
-    assert_eq!((p.width, p.height), (600.0, 300.0 - 32.0));
+    assert_eq!((p.width, p.height), (600.0, 300.0 - BARRAS));
     let esperado = grid_size(
-        Rect::new(0.0, 0.0, 600.0, 268.0),
+        Rect::new(0.0, 0.0, 600.0, 300.0 - BARRAS),
         app.get_cell_width(),
         app.get_cell_height(),
         app.get_pane_pad(),

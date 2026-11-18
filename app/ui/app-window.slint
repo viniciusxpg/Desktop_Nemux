@@ -19,7 +19,7 @@ export struct DividerView {
     vertical: bool,
 }
 
-// Um limite do plano do Claude na barra de abas.
+// Um limite do plano do Claude na barra de cima.
 export struct UsageMeter {
     label: string,
     // De 0 a 100 (pode passar de 100).
@@ -208,7 +208,7 @@ component TabButton inherits Rectangle {
     }
 }
 
-// Botão da barra de abas que divide o painel ativo; o ícone mostra a divisória.
+// Botão da barra de cima que divide o painel ativo; o ícone mostra a divisória.
 component SplitButton inherits Rectangle {
     in property <bool> side-by-side;
     in property <string> label;
@@ -283,7 +283,7 @@ export component AppWindow inherits Window {
     in property <bool> restore-tabs: true;
     in property <bool> has-config;
 
-    // Uso do Claude Code (usage_view.rs): limites do plano na barra de abas, com o
+    // Uso do Claude Code (usage_view.rs): limites do plano na barra de cima, com o
     // detalhe ao passar o mouse; e se a barra de status do Claude já manda o uso.
     in property <[UsageMeter]> usage-meters;
     in property <string> usage-detail;
@@ -444,16 +444,174 @@ export component AppWindow inherits Window {
     }
 
     VerticalLayout {
+        // Barra de cima: uso do Claude e os botões; as abas ficam na barra logo abaixo.
+        top-bar := Rectangle {
+            height: 32px;
+            background: Theme.tab-bar;
+
+            HorizontalLayout {
+                // Limites do plano do Claude; sem dados, não ocupa espaço.
+                usage-box := Rectangle {
+                    accessible-role: text;
+                    accessible-label: root.usage-detail;
+
+                    HorizontalLayout {
+                        padding-left: root.usage-meters.length > 0 ? 8px : 0px;
+                        padding-right: root.usage-meters.length > 0 ? 10px : 0px;
+                        spacing: 12px;
+
+                        // Caranguejo: diz que os números são do Claude.
+                        if root.usage-meters.length > 0: VerticalLayout {
+                            alignment: center;
+
+                            // Pixel art 16×10 (8 unidades do SVG por pixel): um pixel do
+                            // desenho por pixel da tela, sem suavizar.
+                            usage-icon := Image {
+                                width: 16px;
+                                height: 10px;
+                                source: @image-url("icons/caranguejo.svg");
+                                image-rendering: pixelated;
+                                colorize: Theme.accent;
+                                accessible-role: image;
+                                accessible-label: "Uso do Claude";
+                            }
+                        }
+
+                        for meter in root.usage-meters: HorizontalLayout {
+                            spacing: 5px;
+
+                            Text {
+                                text: meter.label;
+                                color: Theme.muted;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+
+                                Rectangle {
+                                    width: 44px;
+                                    height: 6px;
+                                    border-radius: 3px;
+                                    background: Theme.divider;
+
+                                    Rectangle {
+                                        x: 0;
+                                        width: parent.width * clamp(meter.percent / 100, 0, 1);
+                                        border-radius: 3px;
+                                        background: meter.percent >= 95 ? #e05252 : (meter.percent >= 80 ? Theme.attention : Theme.accent);
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: round(meter.percent) + "%";
+                                color: meter.percent >= 80 ? Theme.foreground : Theme.muted;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    usage-touch := TouchArea { }
+                }
+
+                // Empurra os botões para a direita; o uso fica no tamanho natural.
+                Rectangle {
+                    horizontal-stretch: 1000;
+                }
+
+                sessions-btn := Rectangle {
+                    width: 80px;
+                    accessible-role: button;
+                    accessible-label: "Retomar sessão do Claude (Ctrl+Shift+R)";
+                    accessible-action-default => { root.toggle-sessions(); }
+                    background: sessions-touch.has-hover ? Theme.tab-hover : transparent;
+
+                    Text {
+                        text: "Sessões";
+                        color: sessions-touch.has-hover ? Theme.foreground : Theme.muted;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    sessions-touch := TouchArea {
+                        clicked => { root.toggle-sessions(); }
+                    }
+                }
+
+                split-right-btn := SplitButton {
+                    side-by-side: true;
+                    label: "Dividir ao lado (Alt+Shift+=)";
+                    clicked => {
+                        root.split-right();
+                        key-handler.focus();
+                    }
+                }
+
+                split-down-btn := SplitButton {
+                    side-by-side: false;
+                    label: "Dividir abaixo (Alt+Shift+-)";
+                    clicked => {
+                        root.split-down();
+                        key-handler.focus();
+                    }
+                }
+
+                memory-btn := Rectangle {
+                    width: 96px;
+                    accessible-role: button;
+                    accessible-label: "Memória";
+                    accessible-action-default => { root.toggle-memory(); }
+                    background: root.memory-open ? Theme.tab-active : (memory-touch.has-hover ? Theme.tab-hover : transparent);
+
+                    Text {
+                        text: "Memória";
+                        color: root.memory-open ? Theme.foreground : Theme.muted;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    memory-touch := TouchArea {
+                        clicked => { root.toggle-memory(); }
+                    }
+                }
+
+                settings-btn := Rectangle {
+                    property <bool> lit: root.settings-open || root.themes-open || root.shortcuts-open;
+                    width: 36px;
+                    accessible-role: button;
+                    accessible-label: "Configurações";
+                    accessible-action-default => { root.toggle-settings(); }
+                    background: self.lit ? Theme.tab-active : (settings-touch.has-hover ? Theme.tab-hover : transparent);
+
+                    settings-icon := Image {
+                        source: @image-url("icons/settings.svg");
+                        width: 18px;
+                        height: 18px;
+                        x: (parent.width - self.width) / 2;
+                        y: (parent.height - self.height) / 2;
+                        colorize: parent.lit ? Theme.accent : (settings-touch.has-hover ? Theme.foreground : Theme.muted);
+                    }
+
+                    settings-touch := TouchArea {
+                        clicked => { root.toggle-settings(); }
+                    }
+                }
+            }
+        }
+
+        // Segunda barra, logo abaixo da de cima: as abas.
         tab-bar := Rectangle {
             height: 32px;
             background: Theme.tab-bar;
 
             HorizontalLayout {
-
                 // As abas têm todas a mesma largura (o arraste depende disso), entre
                 // 120 e 220 px; quando nem assim cabem, a faixa rola (roda do mouse) e
-                // a aba ativa fica sempre à vista. Sem isso, muitas abas empurravam os
-                // botões para fora e alargavam a janela além da tela.
+                // a aba ativa fica sempre à vista. Sem isso, muitas abas empurravam o
+                // botão + para fora e alargavam a janela além da tela.
                 tab-strip := Flickable {
                     property <length> tab-width: root.tabs.length == 0 ? 220px : clamp(self.width / root.tabs.length, 120px, 220px);
                     horizontal-stretch: 1;
@@ -543,154 +701,9 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                // Empurra os botões abaixo para a direita; as abas ficam perto do tamanho natural.
+                // As abas ficam perto do tamanho natural, à esquerda.
                 Rectangle {
                     horizontal-stretch: 1000;
-                }
-
-                // Limites do plano do Claude; sem dados, não ocupa espaço.
-                usage-box := Rectangle {
-                    accessible-role: text;
-                    accessible-label: root.usage-detail;
-
-                    HorizontalLayout {
-                        padding-left: root.usage-meters.length > 0 ? 8px : 0px;
-                        padding-right: root.usage-meters.length > 0 ? 10px : 0px;
-                        spacing: 12px;
-
-                        // Caranguejo: diz que os números são do Claude.
-                        if root.usage-meters.length > 0: VerticalLayout {
-                            alignment: center;
-
-                            // Pixel art 16×10 (8 unidades do SVG por pixel): um pixel do
-                            // desenho por pixel da tela, sem suavizar.
-                            usage-icon := Image {
-                                width: 16px;
-                                height: 10px;
-                                source: @image-url("icons/caranguejo.svg");
-                                image-rendering: pixelated;
-                                colorize: Theme.accent;
-                                accessible-role: image;
-                                accessible-label: "Uso do Claude";
-                            }
-                        }
-
-                        for meter in root.usage-meters: HorizontalLayout {
-                            spacing: 5px;
-
-                            Text {
-                                text: meter.label;
-                                color: Theme.muted;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                            }
-
-                            VerticalLayout {
-                                alignment: center;
-
-                                Rectangle {
-                                    width: 44px;
-                                    height: 6px;
-                                    border-radius: 3px;
-                                    background: Theme.divider;
-
-                                    Rectangle {
-                                        x: 0;
-                                        width: parent.width * clamp(meter.percent / 100, 0, 1);
-                                        border-radius: 3px;
-                                        background: meter.percent >= 95 ? #e05252 : (meter.percent >= 80 ? Theme.attention : Theme.accent);
-                                    }
-                                }
-                            }
-
-                            Text {
-                                text: round(meter.percent) + "%";
-                                color: meter.percent >= 80 ? Theme.foreground : Theme.muted;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
-
-                    usage-touch := TouchArea { }
-                }
-
-                sessions-btn := Rectangle {
-                    width: 80px;
-                    accessible-role: button;
-                    accessible-label: "Retomar sessão do Claude (Ctrl+Shift+R)";
-                    accessible-action-default => { root.toggle-sessions(); }
-                    background: sessions-touch.has-hover ? Theme.tab-hover : transparent;
-
-                    Text {
-                        text: "Sessões";
-                        color: sessions-touch.has-hover ? Theme.foreground : Theme.muted;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-
-                    sessions-touch := TouchArea {
-                        clicked => { root.toggle-sessions(); }
-                    }
-                }
-
-                split-right-btn := SplitButton {
-                    side-by-side: true;
-                    label: "Dividir ao lado (Alt+Shift+=)";
-                    clicked => {
-                        root.split-right();
-                        key-handler.focus();
-                    }
-                }
-
-                split-down-btn := SplitButton {
-                    side-by-side: false;
-                    label: "Dividir abaixo (Alt+Shift+-)";
-                    clicked => {
-                        root.split-down();
-                        key-handler.focus();
-                    }
-                }
-
-                memory-btn := Rectangle {
-                    width: 96px;
-                    accessible-role: button;
-                    accessible-label: "Memória";
-                    accessible-action-default => { root.toggle-memory(); }
-                    background: root.memory-open ? Theme.tab-active : (memory-touch.has-hover ? Theme.tab-hover : transparent);
-
-                    Text {
-                        text: "Memória";
-                        color: root.memory-open ? Theme.foreground : Theme.muted;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-
-                    memory-touch := TouchArea {
-                        clicked => { root.toggle-memory(); }
-                    }
-                }
-
-                settings-btn := Rectangle {
-                    property <bool> lit: root.settings-open || root.themes-open || root.shortcuts-open;
-                    width: 36px;
-                    accessible-role: button;
-                    accessible-label: "Configurações";
-                    accessible-action-default => { root.toggle-settings(); }
-                    background: self.lit ? Theme.tab-active : (settings-touch.has-hover ? Theme.tab-hover : transparent);
-
-                    settings-icon := Image {
-                        source: @image-url("icons/settings.svg");
-                        width: 18px;
-                        height: 18px;
-                        x: (parent.width - self.width) / 2;
-                        y: (parent.height - self.height) / 2;
-                        colorize: parent.lit ? Theme.accent : (settings-touch.has-hover ? Theme.foreground : Theme.muted);
-                    }
-
-                    settings-touch := TouchArea {
-                        clicked => { root.toggle-settings(); }
-                    }
                 }
             }
         }
@@ -865,7 +878,7 @@ export component AppWindow inherits Window {
         current: root.theme-index;
         note: root.themes-note;
         anchor-right: settings-btn.x + settings-btn.width;
-        anchor-top: tab-bar.height + 2px;
+        anchor-top: top-bar.height + 2px;
         choose(i) => { root.theme-chosen(i); }
         close => { root.toggle-themes(); }
     }
@@ -873,7 +886,7 @@ export component AppWindow inherits Window {
     // Detalhe dos limites (uso e quando zera), ao passar o mouse sobre eles.
     if usage-touch.has-hover && root.usage-detail != "": usage-tip := Rectangle {
         x: max(4px, min(usage-box.x + usage-box.width - self.width, root.width - self.width - 4px));
-        y: tab-bar.height + 2px;
+        y: top-bar.height + 2px;
         width: usage-tip-text.preferred-width + 20px;
         height: usage-tip-text.preferred-height + 12px;
         border-radius: 4px;
@@ -895,7 +908,7 @@ export component AppWindow inherits Window {
         width: root.width;
         height: root.height;
         anchor-right: settings-btn.x + settings-btn.width;
-        anchor-top: tab-bar.height + 2px;
+        anchor-top: top-bar.height + 2px;
         restore-tabs: root.restore-tabs;
         has-config: root.has-config;
         usage-bar: root.usage-bar;
@@ -918,7 +931,7 @@ export component AppWindow inherits Window {
         width: root.width;
         height: root.height;
         anchor-right: settings-btn.x + settings-btn.width;
-        anchor-top: tab-bar.height + 2px;
+        anchor-top: top-bar.height + 2px;
         close => { root.toggle-shortcuts(); }
     }
 

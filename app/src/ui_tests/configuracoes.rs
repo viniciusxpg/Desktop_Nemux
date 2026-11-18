@@ -226,7 +226,7 @@ fn captura() {
     esperar_texto(&c, 0, "Nemux");
     println!(
         "{}",
-        capturar(&app, "AppWindow::tab-bar", "barra").display()
+        capturar(&app, "AppWindow::top-bar", "barra").display()
     );
     println!(
         "{}",

@@ -226,6 +226,6 @@ fn capturas() {
     );
     println!(
         "{}",
-        capturar(&c.app, "AppWindow::tab-bar", "abas-memoria").display()
+        capturar(&c.app, "AppWindow::top-bar", "barra-memoria").display()
     );
 }

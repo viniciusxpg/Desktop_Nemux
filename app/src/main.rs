@@ -668,7 +668,7 @@ pub fn init_controllers_with(
         move || save_workspace(&app.borrow(), workspace.as_deref(), restore.get(), &db)
     });
 
-    // Uso do Claude Code: limites na barra de abas e contexto em cada painel.
+    // Uso do Claude Code: limites na barra de cima e contexto em cada painel.
     let usage = RefCell::new(UsageView::new(db.clone()));
     let usage_timer = slint::Timer::default();
     let poll_usage = {

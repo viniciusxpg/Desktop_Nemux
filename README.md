@@ -27,7 +27,8 @@ Aba 3: claude ─┘                     ▲
 
 ## Recursos
 
-- **Terminais reais em abas**: cada aba roda um shell no ConPTY do Windows
+- **Terminais reais em abas**, numa barra logo abaixo da de cima (que fica com o
+  uso do Claude e os botões): cada aba roda um shell no ConPTY do Windows
   (PowerShell por padrão), com cores de 16, 256 e 24 bits, negrito, itálico,
   sublinhado, caracteres largos e 10 mil linhas de histórico.
 - **Painéis divididos**: divida qualquer aba ao lado ou abaixo, quantas vezes
@@ -58,11 +59,11 @@ Aba 3: claude ─┘                     ▲
   salvar, buscar e apagar memórias.
 - **Painel de memória**: veja, busque, filtre por projeto e apague o que o Claude
   salvou. A lista atualiza sozinha quando alguma sessão grava algo novo.
-- **Configurações** (engrenagem ⚙ no canto da barra de abas): **Temas** troca as
+- **Configurações** (engrenagem ⚙ no canto da barra de cima): **Temas** troca as
   cores na hora (Nemux, One Half Dark, Dracula, Solarized Dark, Gruvbox Dark,
   Tokyo Night e Rosé Pine); **Fonte** aumenta e diminui o texto (também com
   `Ctrl+=`, `Ctrl+-` e `Ctrl+0`); **Restaurar abas ao abrir** liga e desliga a
-  restauração; **Uso do Claude na barra** liga o uso do plano na barra de abas
+  restauração; **Uso do Claude na barra** liga o uso do plano na barra de cima
   (veja abaixo); **Abrir config.toml** abre o arquivo no editor (e o cria, se ainda
   não existir); **Atalhos de teclado** lista os atalhos. Tudo fica salvo no
   `config.toml` para a próxima vez.
@@ -72,7 +73,7 @@ Aba 3: claude ─┘                     ▲
   estavam (isso precisa da memória ligada; veja abaixo).
 
 - **Uso do Claude Code**: os limites do plano (5 horas e semanal) ficam na barra
-  de abas, com um caranguejo e perto da engrenagem, amarelos a partir de 80% e vermelhos a partir de
+  de cima, à esquerda, com um caranguejo, amarelos a partir de 80% e vermelhos a partir de
   95%; passe o mouse para ver quando cada um zera. Cada painel com o Claude mostra
   no canto quanto do contexto a sessão já ocupou.
 
@@ -242,7 +243,7 @@ Claude Code reler a configuração.
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Próxima / aba anterior |
 | `Ctrl+Shift+PageUp` / `Ctrl+Shift+PageDown` | Levar a aba para a esquerda / direita (também arrastando) |
 | Duplo clique na aba | Renomear a aba (`Enter` grava, `Esc` desiste; vazio volta ao título do programa) |
-| `Alt+Shift+=` | Dividir o painel ao lado (também pelo botão na barra de abas) |
+| `Alt+Shift+=` | Dividir o painel ao lado (também pelo botão na barra de cima) |
 | `Alt+Shift+-` | Dividir o painel abaixo |
 | `Alt+←` `→` `↑` `↓` | Ir para o painel vizinho (com um painel só, vão para o programa) |
 | `Ctrl+Shift+W` | Fechar o painel (o último painel fecha a aba) |
