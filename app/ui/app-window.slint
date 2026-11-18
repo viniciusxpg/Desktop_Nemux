@@ -541,24 +541,6 @@ export component AppWindow inherits Window {
                     }
                 }
 
-                split-right-btn := SplitButton {
-                    side-by-side: true;
-                    label: "Dividir ao lado (Alt+Shift+=)";
-                    clicked => {
-                        root.split-right();
-                        key-handler.focus();
-                    }
-                }
-
-                split-down-btn := SplitButton {
-                    side-by-side: false;
-                    label: "Dividir abaixo (Alt+Shift+-)";
-                    clicked => {
-                        root.split-down();
-                        key-handler.focus();
-                    }
-                }
-
                 memory-btn := Rectangle {
                     width: 96px;
                     accessible-role: button;
@@ -575,6 +557,24 @@ export component AppWindow inherits Window {
 
                     memory-touch := TouchArea {
                         clicked => { root.toggle-memory(); }
+                    }
+                }
+
+                split-right-btn := SplitButton {
+                    side-by-side: true;
+                    label: "Dividir ao lado (Alt+Shift+=)";
+                    clicked => {
+                        root.split-right();
+                        key-handler.focus();
+                    }
+                }
+
+                split-down-btn := SplitButton {
+                    side-by-side: false;
+                    label: "Dividir abaixo (Alt+Shift+-)";
+                    clicked => {
+                        root.split-down();
+                        key-handler.focus();
                     }
                 }
 
